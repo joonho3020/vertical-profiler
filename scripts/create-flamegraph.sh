@@ -11,14 +11,16 @@ if ! [ -f main ]; then
   make
 fi
 
-SMALLTRACE_DIR=$CURDIR/traces/linux-poweroff-trace
-TRACEFILE=$SMALLTRACE_DIR/TRACEFILE-C0
-DWARFFILE=$SMALLTRACE_DIR/linux-uniform0-br-base-bin-dwarf
+source env.sh
 
-DATE=$(date '+%Y-%m-%d-%h')
+SMALLTRACE_DIR=$CURDIR/traces/spike-linux-trace
+TRACEFILE=$SMALLTRACE_DIR/TRACEFILE-SPIKE
+DWARFFILE=$SMALLTRACE_DIR/linux-poweroff-bin-dwarf
+
+DATE=$(date '+%Y-%m-%d-%H-%M')
 OUTPUT_DIR=$CURDIR/output-dir/$DATE-out
 TRACE_DIR=$OUTPUT_DIR/traces
 mkdir -p $TRACE_DIR
 
-./main $TRACEFILE $DWARFFILE > $TRACE_DIR/TRACEFILE-C0
+./main $TRACEFILE $DWARFFILE > $TRACE_DIR/TRACEFILE-SPIKE
 fireperf/gen-all-flamegraphs-fireperf.sh  $OUTPUT_DIR

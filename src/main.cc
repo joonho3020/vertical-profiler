@@ -3,6 +3,8 @@
 #include <iostream>
 #include "trace_tracker.h"
 
+/* #define FIRESIM_TRACES */
+
 size_t split(const std::string &txt, std::vector<std::string> &strs, char ch) {
   size_t pos = txt.find( ch );
   size_t initialPos = 0;
@@ -38,6 +40,8 @@ int main(int argc, char** argv) {
 
   TraceTracker *t =
     new TraceTracker(dwarffile, stdout);
+
+#ifdef FIRESIM_TRACES
   std::vector<std::string> words;
   while (getline(is, line)) {
     split(line, words, ' ');
@@ -54,4 +58,26 @@ int main(int argc, char** argv) {
     t->addInstruction(addr, cycle);
     words.clear();
   }
+#else
+  std::vector<std::string> words;
+  uint64_t cycle = 0;
+  while (getline(is, line)) {
+    split(line, words, ' ');
+    if ((int)words.size() < 6 || words[0] != "core") {
+      continue;
+    }
+    ++cycle;
+/* for (auto w: words) { */
+/* std::cout << w << ", "; */
+/* } */
+/* std::cout << std::endl; */
+
+    std::string addr_str = words[4];
+    uint64_t addr_offset = 0xffffffff00000000LL;
+    uint64_t addr = (uint64_t)strtoull(addr_str.c_str(), NULL, 16) | addr_offset;
+/* std::cout << addr_str << " " <<  std::hex << addr << " " << std::dec << cycle << std::endl; */
+    t->addInstruction(addr, cycle);
+    words.clear();
+  }
+#endif
 }
