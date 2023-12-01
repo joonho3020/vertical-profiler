@@ -1,0 +1,3 @@
+[submodule "riscv-isa-sim-private"]
+	path = riscv-isa-sim-private
+	url = https://github.com/joey0320/riscv-isa-sim-private.git
