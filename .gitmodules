@@ -1,9 +1,9 @@
-[submodule "riscv-isa-sim-private"]
-	path = sim/riscv-isa-sim-private
-	url = https://github.com/joey0320/riscv-isa-sim-private.git
-[submodule "spike-devices"]
-	path = sim/spike-devices
-	url = https://github.com/ucb-bar/spike-devices.git
 [submodule "chipyard"]
 	path = chipyard
 	url = https://github.com/ucb-bar/chipyard.git
+[submodule "sim/riscv-isa-sim-private"]
+	path = sim/riscv-isa-sim-private
+	url = git@github.com:joey0320/riscv-isa-sim-private.git
+[submodule "sim/spike-devices"]
+	path = sim/spike-devices
+	url = git@github.com:ucb-bar/spike-devices.git
