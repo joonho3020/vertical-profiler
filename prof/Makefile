@@ -1,8 +1,6 @@
 # joonho
 # Makefile for C & C++
 
-CONDA_PREFIX=/scratch/joonho.whangbo/coding/chipyard/.conda-env
-
 # makefile can use variables : use $() to use them
 CC=g++
 CXXFLAGS += -Wall -O2 # use CFLAGS for C
