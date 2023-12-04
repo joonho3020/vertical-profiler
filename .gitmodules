@@ -4,3 +4,6 @@
 [submodule "spike-devices"]
 	path = sim/spike-devices
 	url = https://github.com/ucb-bar/spike-devices.git
+[submodule "chipyard"]
+	path = chipyard
+	url = https://github.com/ucb-bar/chipyard.git
