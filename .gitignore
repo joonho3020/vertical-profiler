@@ -1,4 +1,3 @@
 obj
-main
-linux-poweroff-trace-small
-output-dir
+prof/main
+test-io/traces
