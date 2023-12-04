@@ -2,3 +2,4 @@ obj
 prof/main
 test-io/traces
 *.riscv
+test-io/test-binaries/linux-workloads
