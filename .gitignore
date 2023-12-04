@@ -1,3 +1,4 @@
 obj
 prof/main
 test-io/traces
+*.riscv
