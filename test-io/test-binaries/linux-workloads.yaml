@@ -1,5 +1,6 @@
 {
   "name": "linux-workloads",
   "base": "br-base.json",
-  "overlay": "overlay"
+  "overlay": "overlay",
+  "command": "cd root && ./hello.linux.riscv"
 }

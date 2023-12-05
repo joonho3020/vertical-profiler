@@ -59,6 +59,7 @@ int main(int argc, char** argv) {
     words.clear();
   }
 #else
+  /*
   std::vector<std::string> words;
   uint64_t cycle = 0;
   while (getline(is, line)) {
@@ -67,17 +68,14 @@ int main(int argc, char** argv) {
       continue;
     }
     ++cycle;
-/* for (auto w: words) { */
-/* std::cout << w << ", "; */
-/* } */
-/* std::cout << std::endl; */
 
     std::string addr_str = words[4];
     uint64_t addr_offset = 0xffffffff00000000LL;
     uint64_t addr = (uint64_t)strtoull(addr_str.c_str(), NULL, 16) | addr_offset;
-/* std::cout << addr_str << " " <<  std::hex << addr << " " << std::dec << cycle << std::endl; */
     t->addInstruction(addr, cycle);
     words.clear();
   }
+  */
 #endif
+  return 0;
 }

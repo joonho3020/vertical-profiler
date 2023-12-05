@@ -18,3 +18,5 @@ function test_file_splitter() {
   cat test/test.txt
   ls test
 }
+
+test_file_splitter
