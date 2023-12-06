@@ -36,3 +36,19 @@ executable('main',
     file_splitter_lib,
   ],
   dependencies : [lib_deps])
+
+
+string_parser_test = executable('test_string_parser',
+  'test/test_string_parser.cc',
+  link_with : string_parser_lib)
+
+test('string_parser test', string_parser_test)
+
+file_splitter_test = executable('test_file_splitter',
+  'test/test_file_splitter.cc',
+  link_with : [
+    file_splitter_lib,
+    string_parser_lib
+    ])
+
+test('file_splitter test', file_splitter_test)

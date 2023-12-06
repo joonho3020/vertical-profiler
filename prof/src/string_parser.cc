@@ -32,33 +32,3 @@ void split(std::vector<std::string>& words, std::string& line, std::string delim
     }
   }
 }
-
-
-#ifdef TEST
-
-void test(std::vector<std::string>& words, std::string line) {
-  words.clear();
-  split(words, line);
-  for (auto w : words) {
-    std::cout << w << std::endl;;
-  }
-}
-
-int main() {
-  std::vector<std::string> words;
-
-  test(words, " hello world");
-  test(words, "  hello world");
-  test(words, " hello   world");
-  test(words, "  hello   world ");
-  test(words, "  hello   world  ");
-  test(words, "hello   world  ");
-  test(words, "hello   world");
-  test(words, "helloworld");
-
-  test(words, " hello world bye ");
-  test(words, "hello world bye");
-
-  return 0;
-}
-#endif
