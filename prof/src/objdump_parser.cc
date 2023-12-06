@@ -2,13 +2,13 @@
 #include <string>
 #include <vector>
 #include <cassert>
+#include <iostream>
 #include "objdump_parser.h"
 #include "string_parser.h"
 
 ObjdumpParser::ObjdumpParser(std::string objdump_path)
   : objdump_path(objdump_path)
 {
-  objdump_file = std::ifstream(objdump_path, std::ios::binary);
 }
 
 void ObjdumpParser::get_func_body(std::string func, std::vector<std::string>& body) {
@@ -16,11 +16,12 @@ void ObjdumpParser::get_func_body(std::string func, std::vector<std::string>& bo
   std::vector<std::string> words;
 
   bool in_func = false;
+  std::ifstream objdump_file = std::ifstream(objdump_path, std::ios::binary);
 
   while (std::getline(objdump_file, line)) {
-    split(words, line, " ");
+    split(words, line);
 
-    if (in_func && (int)words.size() == 0) {
+    if (in_func && (int)words.size() == 1) {
       return;
     } else if (in_func) {
       body.emplace_back(line);
@@ -29,6 +30,7 @@ void ObjdumpParser::get_func_body(std::string func, std::vector<std::string>& bo
     }
     words.clear();
   }
+  objdump_file.close();
 }
 
 
@@ -41,13 +43,13 @@ std::string ObjdumpParser::func_args_reg(std::string func, int arg_idx) {
   std::string r = "a" + std::to_string(arg_idx);
   std::vector<std::string> words;
   for (auto l : body) {
-    split(words, l, " ");
+    split(words, l);
 
     // found first instance of "r" used
     if ((int)words.size() >= 4 && words[3].find(r) != std::string::npos) {
       if (words[2].compare("mv") == 0) {
         std::vector<std::string> ops;
-        split(ops, words[3], ",");
+        split(ops, words[3], ',');
         assert((int)ops.size() == 2);
         return ops[0];
       } else {

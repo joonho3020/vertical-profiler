@@ -16,6 +16,11 @@ file_splitter_lib = library('file_splitter_lib',
   link_with : string_parser_lib,
   dependencies : [lib_deps])
 
+objdump_parser_lib = library('objdump_parser_lib',
+  'src/objdump_parser.cc',
+  link_with : string_parser_lib,
+  dependencies : [lib_deps])
+
 executable('file_splitter',
   'src/file_splitter_main.cc',
   link_with : [
@@ -52,3 +57,11 @@ file_splitter_test = executable('test_file_splitter',
     ])
 
 test('file_splitter test', file_splitter_test)
+
+objdump_parser_test = executable('objdump_parser_test',
+  'test/test_objdump_parser.cc',
+  link_with : [
+    string_parser_lib,
+    objdump_parser_lib
+  ])
+test('objdump_parser test', objdump_parser_test)

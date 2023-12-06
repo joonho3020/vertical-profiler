@@ -12,7 +12,7 @@ FileSplitter::FileSplitter(std::string ipath) : ipath(ipath)
 {
 }
 
-void FileSplitter::split_by_field(std::string opath, std::string field, std::string delim) {
+void FileSplitter::split_by_field(std::string opath, std::string field, char delim) {
   std::ifstream ifile(ipath, std::ios::binary);
 
   std::string line;

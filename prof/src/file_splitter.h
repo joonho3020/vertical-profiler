@@ -13,7 +13,7 @@ public:
    * Splits each line by "delim", searches for "field" and gets the value of "field".
    * Splits the file whenever the value changes.
    */
-  void split_by_field(std::string opath, std::string field, std::string delim);
+  void split_by_field(std::string opath, std::string field, char delim);
 
   void write_line(std::string line);
 

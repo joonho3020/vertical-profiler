@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
   std::string opath = argv[3];
 
   FileSplitter *fs = new FileSplitter(ipath);
-  fs->split_by_field(opath, field, " ");
+  fs->split_by_field(opath, field, ' ');
 
   return 0;
 }

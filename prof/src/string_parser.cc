@@ -1,27 +1,24 @@
 
 
 
-#include <boost/algorithm/string.hpp>
-#include <boost/range/iterator_range_core.hpp>
 #include <vector>
 #include <string>
+#include <iostream>
+#include <algorithm>
 
 #include "string_parser.h"
 
-#include <iostream>
 
-void split(std::vector<std::string>& words, std::string& line, std::string delim) {
-  std::vector<boost::iterator_range<std::string::const_iterator>> matches;
-  boost::find_all(matches, line, delim);
 
-  if (matches.size() == 0) {
+// TODO : Perf opts???
+
+void split_by_idx(std::vector<std::string>& words, std::string& line, std::vector<int>& indices) {
+  if (indices.size() == 0) {
     words.emplace_back(line);
   } else {
     int prev_idx = -1;
     int len = (int)line.size();
-    for (auto& m : matches) {
-      int idx = m.begin() - line.begin();
-
+    for (auto& idx : indices) {
       if (!(idx == prev_idx || idx == prev_idx + 1)) {
         words.emplace_back(line.substr(prev_idx + 1, idx - prev_idx - 1));
       }
@@ -32,3 +29,31 @@ void split(std::vector<std::string>& words, std::string& line, std::string delim
     }
   }
 }
+
+void split(std::vector<std::string>& words, std::string& line, char delim) {
+  std::vector<int> indices;
+  int idx = 0;
+  for (auto& c : line) {
+    if (c == delim) {
+      indices.push_back(idx);
+    }
+    ++idx;
+  }
+  split_by_idx(words, line, indices);
+}
+
+void split(std::vector<std::string>& words, std::string& line, std::vector<char> delims) {
+  std::vector<int> indices;
+  for (auto& d: delims) {
+    int idx = 0;
+    for (auto& c : line) {
+      if (c == d) {
+        indices.push_back(idx);
+      }
+      ++idx;
+    }
+  }
+  std::sort(indices.begin(), indices.end());
+  split_by_idx(words, line, indices);
+}
+
