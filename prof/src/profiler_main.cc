@@ -21,6 +21,7 @@
 #include <sstream>
 
 #include "profiler.h"
+#include "string_parser.h"
 
 static void help(int exit_code = 1)
 {
@@ -84,6 +85,8 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --dm-no-halt-groups   Debug module won't support halt groups\n");
   fprintf(stderr, "  --dm-no-impebreak     Debug module won't support implicit ebreak in program buffer\n");
   fprintf(stderr, "  --blocksz=<size>      Cache block size (B) for CMO operations(powers of 2) [default 64]\n");
+  fprintf(stderr, "  --kernel-obj=<name>   Objdump of kernel\n");
+  fprintf(stderr, "  --user-obj=<name>     Objdump of user space program\n");
 
   exit(exit_code);
 }
@@ -397,6 +400,8 @@ int main(int argc, char** argv)
     plugin_device_factories.push_back(it->second);
   };
 
+  std::vector<std::pair<std::string, std::string>> objdump_paths;
+
   option_parser_t parser;
   parser.help(&suggest_help);
   parser.option('h', "help", 0, [&](const char UNUSED *s){help(0);});
@@ -485,6 +490,16 @@ int main(int argc, char** argv)
       exit(-1);
     }
   });
+  parser.option(0, "kernel-obj", 1, [&](const char *s){
+    std::string path = s;
+    objdump_paths.push_back({"kernel", s});
+  });
+  parser.option(0, "user-obj", 1, [&](const char *s){
+    std::string path = s;
+    std::vector<std::string> words;
+    split(words, path, '/');
+    objdump_paths.push_back({words.back(), path});
+  });
 
   auto argv1 = parser.parse(argv);
   std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
@@ -544,24 +559,16 @@ int main(int argc, char** argv)
   }
 
 
-  profiler_t p({}, &cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
+  profiler_t p(objdump_paths, &cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
       log_path, dtb_enabled, dtb_file, socket, cmd_file);
 
   auto spike = p.spike;
-
-
   if (dump_dts) {
     printf("%s", spike->get_dts());
     return 0;
   }
-
   spike->configure_log(log, log_commits);
 
-  spike->init();
-  while (spike->target_running()) {
-    spike->advance(1);
-  }
-  auto return_code = spike->stop_sim();
-
+  auto return_code = p.run();
   return return_code;
 }

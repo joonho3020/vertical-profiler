@@ -18,7 +18,7 @@
 
 class profiler_t {
 public:
-  profiler_t(std::vector<std::string> objdump_paths,
+  profiler_t(std::vector<std::pair<std::string, std::string>> objdump_paths,
       const cfg_t *cfg, bool halted,
       std::vector<std::pair<reg_t, abstract_mem_t*>> mems,
       std::vector<device_factory_t*> plugin_device_factories,
@@ -32,15 +32,18 @@ public:
 
   ~profiler_t();
 
-  std::string find_user_space_binary(addr_t inst_va);
+  std::string find_launched_binary(addr_t inst_va, processor_t* proc);
 
   int run();
 
   sim_lib_t* spike;
 
 private:
+  bool find_kernel_alloc_bprm(addr_t inst_va);
+  bool user_space_addr(addr_t va);
   std::map<std::string, ObjdumpParser*> objdumps;
   std::map<reg_t, std::string> asid_to_bin;
+  std::map<std::string, unsigned int> riscv_abi;
 };
 
 #endif //__PROFILER_H__

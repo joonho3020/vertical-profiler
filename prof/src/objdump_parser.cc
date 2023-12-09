@@ -3,45 +3,65 @@
 #include <vector>
 #include <cassert>
 #include <iostream>
+#include <stdlib.h>
 #include "objdump_parser.h"
 #include "string_parser.h"
 
 ObjdumpParser::ObjdumpParser(std::string objdump_path)
   : objdump_path(objdump_path)
 {
-}
-
-void ObjdumpParser::get_func_body(std::string func, std::vector<std::string>& body) {
   std::string line;
   std::vector<std::string> words;
 
   bool in_func = false;
   std::ifstream objdump_file = std::ifstream(objdump_path, std::ios::binary);
+  std::string name;
+  size_t len;
+  char* end = nullptr;
+
+  if (!objdump_file) {
+    std::cerr << "objdump file does not exist: " << objdump_path << std::endl;
+    exit(1);
+  }
 
   while (std::getline(objdump_file, line)) {
     split(words, line);
 
     if (in_func && (int)words.size() == 1) {
-      return;
+      in_func = false;
     } else if (in_func) {
-      body.emplace_back(line);
-    } else if ((int)words.size() == 2 && words[1].find(func) != std::string::npos) {
+      auto& cur_body = func_bodies.find(name)->second;
+      cur_body.emplace_back(line);
+    } else if ((int)words.size() == 2 && words[1].find(">:") != std::string::npos) {
       in_func = true;
+      len = words[1].size() - 3;
+      name = words[1].substr(1, len);
+
+      func_bodies.insert({name, {line}});
+      func_start_va.insert({name, std::strtoul(words[0].c_str(), &end, 16)});
     }
     words.clear();
   }
   objdump_file.close();
 }
 
+// TODO : Don't want to repeat opening up a file, read it, and parse it.
+std::vector<std::string>& ObjdumpParser::get_func_body(std::string func) {
+  auto it = func_bodies.find(func);
+  if (it == func_bodies.end()) {
+    assert((void("Could not find function body in the objdump"), false));
+  }
+  return it->second;
+}
+
 
 std::string ObjdumpParser::func_args_reg(std::string func, int arg_idx) {
   assert((void("RISC-V can pass up to 8 arguments via regs"), arg_idx <= 7));
 
-  std::vector<std::string> body;
-  get_func_body(func, body);
-
+  std::vector<std::string> body = get_func_body(func);
   std::string r = "a" + std::to_string(arg_idx);
   std::vector<std::string> words;
+
   for (auto l : body) {
     split(words, l);
 
@@ -61,4 +81,13 @@ std::string ObjdumpParser::func_args_reg(std::string func, int arg_idx) {
   }
 
   return r;
+}
+
+
+addr_t ObjdumpParser::get_func_start_va(std::string func) {
+  auto it = func_start_va.find(func);
+  if (it == func_start_va.end()) {
+    assert((void("Could not find function starting name in the objdump"), false));
+  }
+  return it->second;
 }
