@@ -89,12 +89,14 @@ std::string profiler_t::find_launched_binary(addr_t inst_va, processor_t* proc) 
 
   std::string farg_abi_reg = obj->func_args_reg(k_alloc_bprm,
                                                 k_alloc_bprm_filename_arg);
+
   unsigned int reg_idx = riscv_abi[farg_abi_reg];
   state_t* state = proc->get_state();
   addr_t fname_addr = state->XPR[reg_idx];
-  mmu_t* mmu = spike->debug_mmu;
+  mmu_t* mmu = proc->get_mmu();
 
   std::cout << "find_launched_binary filename: 0x" << std::hex << fname_addr << std::endl;
+  std::cout << "reg: " << farg_abi_reg << std::endl;
 
   uint8_t data;
   std::string fname;
@@ -103,10 +105,12 @@ std::string profiler_t::find_launched_binary(addr_t inst_va, processor_t* proc) 
     data = mmu->load<uint8_t>(fname_addr + offset);
     std::cout << data << ", ";
     fname.push_back((char)data);
-  } while (data);
+    offset++;
+  } while (data || offset < MAX_FILENAME_SIZE);
+
   std::cout << std::endl;
   std::cout << fname << std::endl;
-
+  std::cout << "find_launched_binary done" << std::endl;
   return fname;
 }
 
@@ -132,18 +136,16 @@ int profiler_t::run() {
     addr_t va = state->pc;
     addr_t asid = proc->get_asid();
 
-/* std::cout << std::hex << "0x" << va << " user_space_addr: " << */
-/* user_space_addr(va) << std::endl; */
-
     if (user_space_addr(va)) {
       // print binary name for the current asid
       auto it = asid_to_bin.find(asid);
       if (it != asid_to_bin.end()) {
-        std::cout << it->second << std::endl;
+/* std::cout << it->second << std::endl; */
       }
     } else if (find_kernel_alloc_bprm(va)) {
       std::cout << "Found kernel_alloc_bprm" << std::endl;
       // map current asid with binary name
+      spike->advance(1);
       std::string bin = find_launched_binary(va, proc);
       asid_to_bin.insert({asid, bin});
     } else {

@@ -1,5 +1,8 @@
 project('profiler', 'cpp')
 
+
+add_global_arguments('-O3', language : 'cpp')
+
 root_dir = meson.source_root()
 conda_path=root_dir + '/../chipyard/.conda-env'
 riscv_tools_path=conda_path + '/riscv-tools'

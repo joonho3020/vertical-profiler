@@ -39,6 +39,7 @@ public:
   sim_lib_t* spike;
 
 private:
+  const addr_t MAX_FILENAME_SIZE = 200;
   bool find_kernel_alloc_bprm(addr_t inst_va);
   bool user_space_addr(addr_t va);
   std::map<std::string, ObjdumpParser*> objdumps;
