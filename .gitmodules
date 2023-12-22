@@ -7,3 +7,6 @@
 [submodule "sim/spike-devices"]
 	path = prof/spike-devices
 	url = git@github.com:ucb-bar/spike-devices.git
+[submodule "prof/protobuf"]
+	path = prof/protobuf
+	url = git@github.com:protocolbuffers/protobuf.git
