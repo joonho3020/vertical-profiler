@@ -71,7 +71,10 @@ std::string ObjdumpParser::func_args_reg(std::string func, int arg_idx) {
         std::vector<std::string> ops;
         split(ops, words[3], ',');
         assert((int)ops.size() == 2);
-        return ops[0];
+        if (ops[0].compare(r) == 0)
+          return ops[0];
+        else
+          return ops[1];
       } else {
         return r;
       }

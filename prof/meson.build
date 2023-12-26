@@ -8,6 +8,8 @@ conda_path=root_dir + '/../chipyard/.conda-env'
 riscv_tools_path=conda_path + '/riscv-tools'
 riscv_lib_path=riscv_tools_path + '/lib'
 riscv_hdr_path='../chipyard/.conda-env/riscv-tools/include'
+protobuf_install_path=root_dir + '/protobuf/install'
+protobuf_hdr_path = 'protobuf/install/include'
 
 lib_deps = declare_dependency(
   link_args: ['-L' + conda_path, '-l:libdwarf.so', '-l:libelf.so']
@@ -18,6 +20,7 @@ spike_lib_deps = declare_dependency(
   )
 
 spike_hdr_incs = include_directories(riscv_hdr_path)
+protobuf_hdr_incs = include_directories(protobuf_hdr_path)
 
 string_parser_lib = library('string_parser_lib',
   'src/string_parser.cc',
@@ -58,16 +61,17 @@ executable('main',
 executable('profiler_main',
   [
     'src/profiler_main.cc',
-    'src/profiler.cc'
-  ],
-  link_with : [
-    string_parser_lib,
-    objdump_parser_lib
+    'src/profiler.cc',
+    'src/string_parser.cc',
+    'src/objdump_parser.cc'
   ],
   dependencies : [
     lib_deps, spike_lib_deps
   ],
-  include_directories : spike_hdr_incs)
+  include_directories : [
+    spike_hdr_incs,
+    protobuf_hdr_incs
+  ])
 
 string_parser_test = executable('test_string_parser',
   'test/test_string_parser.cc',

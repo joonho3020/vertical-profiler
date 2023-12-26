@@ -31,15 +31,14 @@ profiler_t::profiler_t(
       bool dtb_enabled,
       const char *dtb_file,
       bool socket_enabled,
-      FILE *cmd_file)
+      FILE *cmd_file,
+      bool checkpoint)
+  : sim_lib_t(cfg, halted, mems, plugin_device_factories, args, dm_config,
+          log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file, checkpoint)
 {
   for (auto& p: objdump_paths) {
     objdumps.insert({p.first, new ObjdumpParser(p.second)});
   }
-
-  spike = new sim_lib_t(cfg, halted, mems, plugin_device_factories, args,
-                        dm_config, log_path, dtb_enabled, dtb_file,
-                        socket_enabled, cmd_file);
 
   riscv_abi.insert({"x0" , 0 });
   riscv_abi.insert({"ra" , 1 });
@@ -83,8 +82,7 @@ profiler_t::~profiler_t() {
   objdumps.clear();
 }
 
-std::string profiler_t::find_launched_binary(addr_t inst_va, processor_t* proc) {
-  assert(!user_space_addr(inst_va));
+std::string profiler_t::find_launched_binary(processor_t* proc) {
   ObjdumpParser *obj = objdumps.find("kernel")->second;
 
   std::string farg_abi_reg = obj->func_args_reg(k_alloc_bprm,
@@ -94,6 +92,13 @@ std::string profiler_t::find_launched_binary(addr_t inst_va, processor_t* proc) 
   state_t* state = proc->get_state();
   addr_t fname_addr = state->XPR[reg_idx];
   mmu_t* mmu = proc->get_mmu();
+
+
+#ifdef DEBUG
+  std::cout << "pc: 0x" << std::hex << state->pc      << std::endl;
+  std::cout << "s2: 0x" << std::hex << state->XPR[18] << std::endl;
+  std::cout << "s3: 0x" << std::hex << state->XPR[19] << std::endl;
+#endif
 
   std::cout << "find_launched_binary filename: 0x" << std::hex << fname_addr << std::endl;
   std::cout << "reg: " << farg_abi_reg << std::endl;
@@ -126,32 +131,83 @@ bool profiler_t::user_space_addr(addr_t va) {
 }
 
 int profiler_t::run() {
-  spike->init();
-  while (spike->target_running()) {
-    spike->advance(1);
+  init();
 
-    // FIXME : for single core
-    processor_t* proc = spike->get_core(0);
-    state_t* state = proc->get_state();
-    addr_t va = state->pc;
-    addr_t asid = proc->get_asid();
+  size_t INTERLEAVE = 5000;
+  size_t INSN_PER_CKPT = 100000;
+  size_t INSNS_PER_RTC_TICK = 100;
 
-    if (user_space_addr(va)) {
-      // print binary name for the current asid
-      auto it = asid_to_bin.find(asid);
-      if (it != asid_to_bin.end()) {
-/* std::cout << it->second << std::endl; */
+  while (target_running()) {
+    std::string protobuf;
+    take_ckpt(protobuf);
+    run_for(INSN_PER_CKPT);
+
+    bool rewind = false;
+    size_t fwd_steps = 0;
+    std::vector<reg_t> pctrace = this->pctrace();
+    for (size_t i = 0, cnt = pctrace.size(); i < cnt; i++) {
+      if (find_kernel_alloc_bprm(pctrace[i])) {
+        rewind = true;
+        fwd_steps = i;
+        printf("rewind! fwd_steps: %" PRIu64 "/ %" PRIu64 "\n", fwd_steps, cnt);
+        break;
       }
-    } else if (find_kernel_alloc_bprm(va)) {
-      std::cout << "Found kernel_alloc_bprm" << std::endl;
-      // map current asid with binary name
-      spike->advance(1);
-      std::string bin = find_launched_binary(va, proc);
-      asid_to_bin.insert({asid, bin});
-    } else {
-      // do nothing
+    }
+
+    if (rewind) {
+      size_t cur_steps = 0;
+      load_ckpt(protobuf, false);
+
+      size_t fastfwd_steps = (fwd_steps < INTERLEAVE) ? fwd_steps : fwd_steps - INTERLEAVE;
+      run_for(fastfwd_steps);
+      cur_steps = fastfwd_steps;
+      printf("rewinding steps: %" PRIu64 " / %" PRIu64 "\n", this->pctrace().size(), pctrace.size());
+#ifdef DEBUG
+      std::vector<reg_t> rewind_pctrace = this->pctrace();
+      for (size_t i = 0, cnt = rewind_pctrace.size(); i < cnt; i++) {
+        if (pctrace[i] != rewind_pctrace[i]) {
+          printf("trace mismatch: %lu orig: 0x%" PRIx64 " rwd: 0x%" PRIx64 "\n",
+              i, pctrace[i], rewind_pctrace[i]);
+          exit(1);
+        }
+        if (find_kernel_alloc_bprm(rewind_pctrace[i])) {
+          printf("fastfwd too much: pc 0x%" PRIx64 "\n", rewind_pctrace[i]);
+          exit(1);
+        }
+      }
+#endif
+
+      do {
+        run_for(1);
+        cur_steps++;
+
+        processor_t* proc = get_core(0);
+        state_t* state = proc->get_state();
+        addr_t va = state->pc;
+        addr_t asid = proc->get_asid();
+
+        if (user_space_addr(va)) {
+          // print binary name for the current asid
+          auto it = asid_to_bin.find(asid);
+          if (it != asid_to_bin.end()) {
+          }
+        } else if (find_kernel_alloc_bprm(va)) {
+          printf("Found kernel_alloc_bprm, va: 0x%" PRIx64 "\n", va);
+          // map current asid with binary name
+          std::string bin = find_launched_binary(proc);
+          asid_to_bin.insert({asid, bin});
+
+          run_for(1);
+          std::cout << "PC: " << std::hex << va << std::endl;
+          cur_steps++;
+          break;
+        } else {
+          // do nothing
+        }
+      } while (true);
     }
   }
-  auto rc = spike->stop_sim();
+
+  auto rc = stop_sim();
   return rc;
 }

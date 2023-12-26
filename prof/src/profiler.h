@@ -16,7 +16,7 @@
 #include "types.h"
 #include "objdump_parser.h"
 
-class profiler_t {
+class profiler_t : public sim_lib_t {
 public:
   profiler_t(std::vector<std::pair<std::string, std::string>> objdump_paths,
       const cfg_t *cfg, bool halted,
@@ -28,15 +28,14 @@ public:
       bool dtb_enabled,
       const char *dtb_file,
       bool socket_enabled,
-      FILE *cmd_file);
+      FILE *cmd_file,
+      bool checkpoint);
 
   ~profiler_t();
 
-  std::string find_launched_binary(addr_t inst_va, processor_t* proc);
+  std::string find_launched_binary(processor_t* proc);
 
-  int run();
-
-  sim_lib_t* spike;
+  virtual int run() override;
 
 private:
   const addr_t MAX_FILENAME_SIZE = 200;

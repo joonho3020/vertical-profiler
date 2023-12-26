@@ -5,6 +5,7 @@ export PATH="$PATH:$ONE_PROF_BASE/prof/fireperf/FlameGraph"
 
 conda activate $ONE_PROF_BASE/chipyard/.conda-env
 export PROTOBUF_INSTALL_DIR=$ONE_PROF_BASE/prof/protobuf/install
+export PATH="$PROTOBUF_INSTALL_DIR/bin:$PATH"
 
 export GCC="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gcc"
 export GCC_RANLIB="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gcc-ranlib"
