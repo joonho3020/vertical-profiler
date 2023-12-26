@@ -84,39 +84,31 @@ profiler_t::~profiler_t() {
 
 std::string profiler_t::find_launched_binary(processor_t* proc) {
   ObjdumpParser *obj = objdumps.find("kernel")->second;
-
   std::string farg_abi_reg = obj->func_args_reg(k_alloc_bprm,
                                                 k_alloc_bprm_filename_arg);
-
   unsigned int reg_idx = riscv_abi[farg_abi_reg];
   state_t* state = proc->get_state();
-  addr_t fname_addr = state->XPR[reg_idx];
   mmu_t* mmu = proc->get_mmu();
 
+  addr_t filename_ptr = state->XPR[reg_idx];
+  addr_t filename_struct = mmu->load<uint64_t>(filename_ptr);
 
 #ifdef DEBUG
-  std::cout << "pc: 0x" << std::hex << state->pc      << std::endl;
-  std::cout << "s2: 0x" << std::hex << state->XPR[18] << std::endl;
-  std::cout << "s3: 0x" << std::hex << state->XPR[19] << std::endl;
+  pprintf("%s ptr 0x%" PRIx64 " *ptr 0x%" PRIx64 "\n",
+        farg_abi_reg.c_str(), filename_ptr, filename_struct);
 #endif
 
-  std::cout << "find_launched_binary filename: 0x" << std::hex << fname_addr << std::endl;
-  std::cout << "reg: " << farg_abi_reg << std::endl;
-
   uint8_t data;
-  std::string fname;
+  std::string name;
   addr_t offset = 0;
   do {
-    data = mmu->load<uint8_t>(fname_addr + offset);
-    std::cout << data << ", ";
-    fname.push_back((char)data);
+    data = mmu->load<uint8_t>(filename_struct + offset);
+    name.push_back((char)data);
     offset++;
-  } while (data || offset < MAX_FILENAME_SIZE);
+  } while ((data != 0) && (offset < MAX_FILENAME_SIZE));
 
-  std::cout << std::endl;
-  std::cout << fname << std::endl;
-  std::cout << "find_launched_binary done" << std::endl;
-  return fname;
+  pprintf("find_launced_binary done %s\n", name.c_str());
+  return name;
 }
 
 bool profiler_t::find_kernel_alloc_bprm(addr_t inst_va) {
@@ -149,7 +141,9 @@ int profiler_t::run() {
       if (find_kernel_alloc_bprm(pctrace[i])) {
         rewind = true;
         fwd_steps = i;
-        printf("rewind! fwd_steps: %" PRIu64 "/ %" PRIu64 "\n", fwd_steps, cnt);
+#ifdef DEBUG
+        pprintf("rewind! fwd_steps: %" PRIu64 "/ %" PRIu64 "\n", fwd_steps, cnt);
+#endif
         break;
       }
     }
@@ -161,7 +155,6 @@ int profiler_t::run() {
       size_t fastfwd_steps = (fwd_steps < INTERLEAVE) ? fwd_steps : fwd_steps - INTERLEAVE;
       run_for(fastfwd_steps);
       cur_steps = fastfwd_steps;
-      printf("rewinding steps: %" PRIu64 " / %" PRIu64 "\n", this->pctrace().size(), pctrace.size());
 #ifdef DEBUG
       std::vector<reg_t> rewind_pctrace = this->pctrace();
       for (size_t i = 0, cnt = rewind_pctrace.size(); i < cnt; i++) {
@@ -192,13 +185,14 @@ int profiler_t::run() {
           if (it != asid_to_bin.end()) {
           }
         } else if (find_kernel_alloc_bprm(va)) {
-          printf("Found kernel_alloc_bprm, va: 0x%" PRIx64 "\n", va);
+#ifdef DEBUG
+          pprintf("Found kernel_alloc_bprm, va: 0x%" PRIx64 "\n", va);
+#endif
           // map current asid with binary name
           std::string bin = find_launched_binary(proc);
           asid_to_bin.insert({asid, bin});
 
           run_for(1);
-          std::cout << "PC: " << std::hex << va << std::endl;
           cur_steps++;
           break;
         } else {
