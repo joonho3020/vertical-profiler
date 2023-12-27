@@ -16,11 +16,13 @@
 
 #include "types.h"
 #include "objdump_parser.h"
+#include "thread_pool.h"
+#include "string_parser.h"
 #include "profiler.h"
 
+namespace Profiler {
 
-
-profiler_t::profiler_t(
+Profiler::Profiler(
       std::vector<std::pair<std::string, std::string>> objdump_paths,
       const cfg_t *cfg, bool halted,
       std::vector<std::pair<reg_t, abstract_mem_t*>> mems,
@@ -32,13 +34,17 @@ profiler_t::profiler_t(
       const char *dtb_file,
       bool socket_enabled,
       FILE *cmd_file,
-      bool checkpoint)
+      bool checkpoint,
+      const char *prof_outdir)
   : sim_lib_t(cfg, halted, mems, plugin_device_factories, args, dm_config,
-          log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file, checkpoint)
+          log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file, checkpoint),
+    prof_outdir(prof_outdir)
 {
   for (auto& p: objdump_paths) {
     objdumps.insert({p.first, new ObjdumpParser(p.second)});
   }
+
+  loggers.start();
 
   riscv_abi.insert({"x0" , 0 });
   riscv_abi.insert({"ra" , 1 });
@@ -75,14 +81,14 @@ profiler_t::profiler_t(
   riscv_abi.insert({"t6" , 31});
 }
 
-profiler_t::~profiler_t() {
+Profiler::~Profiler() {
   for (auto& o : objdumps) {
     delete o.second;
   }
   objdumps.clear();
 }
 
-std::string profiler_t::find_launched_binary(processor_t* proc) {
+std::string Profiler::find_launched_binary(processor_t* proc) {
   ObjdumpParser *obj = objdumps.find("kernel")->second;
   std::string farg_abi_reg = obj->func_args_reg(k_alloc_bprm,
                                                 k_alloc_bprm_filename_arg);
@@ -107,22 +113,25 @@ std::string profiler_t::find_launched_binary(processor_t* proc) {
     offset++;
   } while ((data != 0) && (offset < MAX_FILENAME_SIZE));
 
-  pprintf("find_launced_binary done %s\n", name.c_str());
+  addr_t va = state->pc;
+  addr_t asid = proc->get_asid();
+  pprintf("find_launced_binary done %s va: 0x% " PRIx64 " asid: %" PRIu64 "\n",
+          name.c_str(), va, asid);
   return name;
 }
 
-bool profiler_t::find_kernel_alloc_bprm(addr_t inst_va) {
+bool Profiler::find_kernel_alloc_bprm(addr_t inst_va) {
   ObjdumpParser* obj = objdumps.find("kernel")->second;
   return (obj->get_func_start_va(k_alloc_bprm) == inst_va);
 }
 
 // Kernel takes up the upper virtual address
-bool profiler_t::user_space_addr(addr_t va) {
+bool Profiler::user_space_addr(addr_t va) {
   addr_t va_hi = va >> 32;
   return ((va_hi & 0xffffffff) == 0);
 }
 
-int profiler_t::run() {
+int Profiler::run() {
   init();
 
   size_t INTERLEAVE = 5000;
@@ -136,42 +145,34 @@ int profiler_t::run() {
 
     bool rewind = false;
     size_t fwd_steps = 0;
-    std::vector<reg_t> pctrace = this->pctrace();
+    trace_t pctrace = this->run_trace();
     for (size_t i = 0, cnt = pctrace.size(); i < cnt; i++) {
-      if (find_kernel_alloc_bprm(pctrace[i])) {
+      if (find_kernel_alloc_bprm(pctrace[i].pc)) {
         rewind = true;
         fwd_steps = i;
-#ifdef DEBUG
-        pprintf("rewind! fwd_steps: %" PRIu64 "/ %" PRIu64 "\n", fwd_steps, cnt);
-#endif
+        pctrace.clear();
         break;
       }
     }
 
     if (rewind) {
+      trace_t rewind_trace;
       size_t cur_steps = 0;
       load_ckpt(protobuf, false);
 
-      size_t fastfwd_steps = (fwd_steps < INTERLEAVE) ? fwd_steps : fwd_steps - INTERLEAVE;
+      size_t fastfwd_steps = (fwd_steps < INTERLEAVE) ?
+                              fwd_steps :
+                              fwd_steps - INTERLEAVE;
+
       run_for(fastfwd_steps);
+      rewind_trace = this->run_trace();
+      pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
       cur_steps = fastfwd_steps;
-#ifdef DEBUG
-      std::vector<reg_t> rewind_pctrace = this->pctrace();
-      for (size_t i = 0, cnt = rewind_pctrace.size(); i < cnt; i++) {
-        if (pctrace[i] != rewind_pctrace[i]) {
-          printf("trace mismatch: %lu orig: 0x%" PRIx64 " rwd: 0x%" PRIx64 "\n",
-              i, pctrace[i], rewind_pctrace[i]);
-          exit(1);
-        }
-        if (find_kernel_alloc_bprm(rewind_pctrace[i])) {
-          printf("fastfwd too much: pc 0x%" PRIx64 "\n", rewind_pctrace[i]);
-          exit(1);
-        }
-      }
-#endif
 
       do {
         run_for(1);
+        rewind_trace = this->run_trace();
+        pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
         cur_steps++;
 
         processor_t* proc = get_core(0);
@@ -180,19 +181,24 @@ int profiler_t::run() {
         addr_t asid = proc->get_asid();
 
         if (user_space_addr(va)) {
+          printf("0x%" PRIx64 " asid: %" PRIu64 "\n", va, asid);
           // print binary name for the current asid
           auto it = asid_to_bin.find(asid);
           if (it != asid_to_bin.end()) {
           }
         } else if (find_kernel_alloc_bprm(va)) {
-#ifdef DEBUG
-          pprintf("Found kernel_alloc_bprm, va: 0x%" PRIx64 "\n", va);
-#endif
           // map current asid with binary name
-          std::string bin = find_launched_binary(proc);
+          std::string bin_path = find_launched_binary(proc);
+
+          std::vector<std::string> words;
+          split(words, bin_path, '/');
+
+          std::string bin = words.back();
           asid_to_bin.insert({asid, bin});
 
           run_for(1);
+          rewind_trace = this->run_trace();
+          pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
           cur_steps++;
           break;
         } else {
@@ -200,8 +206,34 @@ int profiler_t::run() {
         }
       } while (true);
     }
+    submit_trace_to_threadpool(pctrace);
   }
 
+  loggers.stop();
   auto rc = stop_sim();
   return rc;
 }
+
+void Profiler::submit_trace_to_threadpool(trace_t& trace) {
+  std::string sfx;
+  if (trace_idx < 10) {
+    sfx = "000000" + std::to_string(trace_idx);
+  } else if (trace_idx < 100) {
+    sfx = "00000" + std::to_string(trace_idx);
+  } else if (trace_idx < 1000) {
+    sfx = "0000" + std::to_string(trace_idx);
+  } else if (trace_idx < 10000) {
+    sfx = "000" + std::to_string(trace_idx);
+  } else if (trace_idx < 100000) {
+    sfx = "00" + std::to_string(trace_idx);
+  } else if (trace_idx < 1000000) {
+    sfx = "0" + std::to_string(trace_idx);
+  } else {
+    sfx = std::to_string(trace_idx);
+  }
+  ++trace_idx;
+  std::string name = prof_outdir + "/SPIKETRACE-" + sfx;
+  loggers.queueJob(printLogs, trace, name);
+}
+
+} // namespace Profiler

@@ -9,7 +9,7 @@
 #include "string_parser.h"
 
 
-
+using namespace Profiler;
 
 int main(int argc, char** argv) {
   if (argc != 4) {

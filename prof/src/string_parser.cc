@@ -9,6 +9,7 @@
 #include "string_parser.h"
 
 
+namespace Profiler {
 
 // TODO : Perf opts???
 
@@ -57,3 +58,4 @@ void split(std::vector<std::string>& words, std::string& line, std::vector<char>
   split_by_idx(words, line, indices);
 }
 
+} // namespace Profiler

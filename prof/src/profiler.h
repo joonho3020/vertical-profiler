@@ -12,13 +12,17 @@
 #include <riscv/simif.h>
 #include <riscv/sim.h>
 #include <riscv/sim_lib.h>
+#include <riscv/processor.h>
 
 #include "types.h"
 #include "objdump_parser.h"
+#include "thread_pool.h"
 
-class profiler_t : public sim_lib_t {
+namespace Profiler {
+
+class Profiler : public sim_lib_t {
 public:
-  profiler_t(std::vector<std::pair<std::string, std::string>> objdump_paths,
+  Profiler(std::vector<std::pair<std::string, std::string>> objdump_paths,
       const cfg_t *cfg, bool halted,
       std::vector<std::pair<reg_t, abstract_mem_t*>> mems,
       std::vector<device_factory_t*> plugin_device_factories,
@@ -29,9 +33,10 @@ public:
       const char *dtb_file,
       bool socket_enabled,
       FILE *cmd_file,
-      bool checkpoint);
+      bool checkpoint,
+      const char* prof_outdir);
 
-  ~profiler_t();
+  ~Profiler();
 
   std::string find_launched_binary(processor_t* proc);
 
@@ -44,6 +49,14 @@ private:
   std::map<std::string, ObjdumpParser*> objdumps;
   std::map<reg_t, std::string> asid_to_bin;
   std::map<std::string, unsigned int> riscv_abi;
+
+private:
+  std::string prof_outdir;
+  uint64_t trace_idx = 0;
+  void submit_trace_to_threadpool(trace_t& trace);
+  ThreadPool loggers;
 };
+
+} // namespace Profiler
 
 #endif //__PROFILER_H__

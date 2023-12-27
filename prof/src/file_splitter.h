@@ -5,6 +5,8 @@
 #include <iostream>
 #include <string>
 
+namespace Profiler {
+
 class FileSplitter {
 public:
   FileSplitter(std::string ipath);
@@ -21,6 +23,7 @@ private:
   std::string ipath;
 };
 
+} // namespace Profiler
 
 
 #endif // __FILE_SPLITTER_H__

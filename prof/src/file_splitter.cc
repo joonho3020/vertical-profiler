@@ -8,6 +8,8 @@
 #include "string_parser.h"
 
 
+namespace Profiler {
+
 FileSplitter::FileSplitter(std::string ipath) : ipath(ipath)
 {
 }
@@ -56,3 +58,5 @@ void FileSplitter::write_line(std::string line) {
   ofile << line << "\n";
   ofile.close();
 }
+
+} // namespace Profiler

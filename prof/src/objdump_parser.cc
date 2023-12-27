@@ -7,6 +7,8 @@
 #include "objdump_parser.h"
 #include "string_parser.h"
 
+namespace Profiler {
+
 ObjdumpParser::ObjdumpParser(std::string objdump_path)
   : objdump_path(objdump_path)
 {
@@ -94,3 +96,5 @@ addr_t ObjdumpParser::get_func_start_va(std::string func) {
   }
   return it->second;
 }
+
+} // namespace Profiler

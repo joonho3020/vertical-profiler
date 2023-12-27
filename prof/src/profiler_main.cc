@@ -87,6 +87,7 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --blocksz=<size>      Cache block size (B) for CMO operations(powers of 2) [default 64]\n");
   fprintf(stderr, "  --kernel-obj=<name>   Objdump of kernel\n");
   fprintf(stderr, "  --user-obj=<name>     Objdump of user space program\n");
+  fprintf(stderr, "  --prof-out=<name>     Directory to output profiling data\n");
 
   exit(exit_code);
 }
@@ -352,6 +353,7 @@ int main(int argc, char** argv)
   unsigned dmi_rti = 0;
   reg_t blocksz = 64;
   debug_module_config_t dm_config;
+  const char *prof_outdir = nullptr;
   cfg_arg_t<size_t> nprocs(1);
 
   cfg_t cfg;
@@ -451,6 +453,8 @@ int main(int argc, char** argv)
                 [&](const char UNUSED *s){log_commits = true;});
   parser.option(0, "log", 1,
                 [&](const char* s){log_path = s;});
+  parser.option(0, "prof-out", 1,
+                [&](const char* s){prof_outdir = s;});
   FILE *cmd_file = NULL;
   parser.option(0, "debug-cmd", 1, [&](const char* s){
      if ((cmd_file = fopen(s, "r"))==NULL) {
@@ -475,7 +479,7 @@ int main(int argc, char** argv)
   parser.option(0, "user-obj", 1, [&](const char *s){
     std::string path = s;
     std::vector<std::string> words;
-    split(words, path, '/');
+    Profiler::split(words, path, '/');
     objdump_paths.push_back({words.back(), path});
   });
 
@@ -537,8 +541,8 @@ int main(int argc, char** argv)
   }
 
 
-  profiler_t p(objdump_paths, &cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
-      log_path, dtb_enabled, dtb_file, socket, cmd_file, true);
+  Profiler::Profiler p(objdump_paths, &cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
+      log_path, dtb_enabled, dtb_file, socket, cmd_file, true, prof_outdir);
 
   if (dump_dts) {
     printf("%s", p.get_dts());

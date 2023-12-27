@@ -12,7 +12,7 @@ protobuf_install_path=root_dir + '/protobuf/install'
 protobuf_hdr_path = 'protobuf/install/include'
 
 lib_deps = declare_dependency(
-  link_args: ['-L' + conda_path, '-l:libdwarf.so', '-l:libelf.so']
+  link_args: ['-L' + conda_path, '-l:libdwarf.so', '-l:libelf.so', '-lpthread']
   )
 
 spike_lib_deps = declare_dependency(
@@ -63,7 +63,8 @@ executable('profiler_main',
     'src/profiler_main.cc',
     'src/profiler.cc',
     'src/string_parser.cc',
-    'src/objdump_parser.cc'
+    'src/objdump_parser.cc',
+    'src/thread_pool.cc'
   ],
   dependencies : [
     lib_deps, spike_lib_deps

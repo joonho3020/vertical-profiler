@@ -7,6 +7,8 @@
 #include <map>
 #include "types.h"
 
+
+namespace Profiler {
 class ObjdumpParser {
 
 public:
@@ -21,5 +23,7 @@ private:
   std::map<std::string, std::vector<std::string>> func_bodies;
   std::map<std::string, addr_t> func_start_va;
 };
+
+} // namespace Profiler
 
 #endif //__OBJDUMP_PARSER_H__
