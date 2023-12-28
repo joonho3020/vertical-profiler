@@ -12,8 +12,13 @@ typedef uint64_t reg_t;
 
 
 
-#define k_alloc_bprm "alloc_bprm"
-#define k_alloc_bprm_filename_arg 1
+#define k_do_execveat_common "do_execveat_common.isra.0"
+#define k_do_execveat_common_filename_arg 1
+
+#define k_set_mm_asid "set_mm_asid"
+
+
+#define XPR_CNT 32
 
 } // namespace Profiler
 

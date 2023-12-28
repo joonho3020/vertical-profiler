@@ -9,19 +9,31 @@
 
 
 namespace Profiler {
-class ObjdumpParser {
 
+
+class Instruction {
+public:
+  Instruction(addr_t addr, std::string fn) : addr(addr), fn(fn) {}
+
+  addr_t addr;
+  std::string fn;
+};
+
+class ObjdumpParser {
 public:
   ObjdumpParser(std::string objdump_path);
 
   std::string func_args_reg(std::string func, int arg_idx);
   std::vector<std::string>& get_func_body(std::string func);
   addr_t get_func_start_va(std::string func);
+  addr_t get_func_end_va(std::string func);
 
 private:
   std::string objdump_path;
   std::map<std::string, std::vector<std::string>> func_bodies;
   std::map<std::string, addr_t> func_start_va;
+  std::map<std::string, addr_t> func_end_va;
+  std::vector<Instruction*> text;
 };
 
 } // namespace Profiler

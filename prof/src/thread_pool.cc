@@ -83,7 +83,7 @@ void ThreadPool::stop() {
 void printLogs(trace_t trace, std::string oname) {
   std::ofstream os(oname, std::ofstream::out);
   for (auto& t : trace) {
-    os << std::hex << t.pc << " " << std::dec << t.asid << "\n";
+    os << std::hex << t.pc << " " << std::dec << t.asid << " " << t.prv << " " << t.prev_prv << "\n";
   }
   os.close();
 }

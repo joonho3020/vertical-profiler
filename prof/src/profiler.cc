@@ -46,39 +46,16 @@ Profiler::Profiler(
 
   loggers.start();
 
-  riscv_abi.insert({"x0" , 0 });
-  riscv_abi.insert({"ra" , 1 });
-  riscv_abi.insert({"sp" , 2 });
-  riscv_abi.insert({"gp" , 3 });
-  riscv_abi.insert({"tp" , 4 });
-  riscv_abi.insert({"t0" , 5 });
-  riscv_abi.insert({"t1" , 6 });
-  riscv_abi.insert({"t2" , 7 });
-  riscv_abi.insert({"s0" , 8 });
-  riscv_abi.insert({"fp" , 8 });
-  riscv_abi.insert({"s1" , 9 });
-  riscv_abi.insert({"a0" , 10});
-  riscv_abi.insert({"a1" , 11});
-  riscv_abi.insert({"a2" , 12});
-  riscv_abi.insert({"a3" , 13});
-  riscv_abi.insert({"a4" , 14});
-  riscv_abi.insert({"a5" , 15});
-  riscv_abi.insert({"a6" , 16});
-  riscv_abi.insert({"a7" , 17});
-  riscv_abi.insert({"s2" , 18});
-  riscv_abi.insert({"s3" , 19});
-  riscv_abi.insert({"s4" , 20});
-  riscv_abi.insert({"s5" , 21});
-  riscv_abi.insert({"s6" , 22});
-  riscv_abi.insert({"s7" , 23});
-  riscv_abi.insert({"s8" , 24});
-  riscv_abi.insert({"s9" , 25});
-  riscv_abi.insert({"s10", 26});
-  riscv_abi.insert({"s11", 27});
-  riscv_abi.insert({"t3" , 28});
-  riscv_abi.insert({"t4" , 29});
-  riscv_abi.insert({"t5" , 30});
-  riscv_abi.insert({"t6" , 31});
+  std::string iregs[XPR_CNT] = {
+    "x0", "ra", "sp", "gp",  "tp",  "t0", "t1", "t2",
+    "s0", "s1", "a0",  "a1",  "a2", "a3", "a4", "a5",
+    "a6", "a7", "s2",  "s3",  "s4", "s5", "s6", "s7",
+    "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
+  };
+
+  for (int i = 0; i < XPR_CNT; i++) {
+    riscv_abi.insert({iregs[i], i});
+  }
 }
 
 Profiler::~Profiler() {
@@ -90,19 +67,21 @@ Profiler::~Profiler() {
 
 std::string Profiler::find_launched_binary(processor_t* proc) {
   ObjdumpParser *obj = objdumps.find("kernel")->second;
-  std::string farg_abi_reg = obj->func_args_reg(k_alloc_bprm,
-                                                k_alloc_bprm_filename_arg);
+  std::string farg_abi_reg = obj->func_args_reg(k_do_execveat_common,
+                                                k_do_execveat_common_filename_arg);
+
+  if (riscv_abi.find(farg_abi_reg) == riscv_abi.end()) {
+    fprintf(stderr, "ABI mismatch: %s, PC: 0x%" PRIx64 "\n",
+        farg_abi_reg, proc->get_state()->pc);
+    exit(1);
+  }
+
   unsigned int reg_idx = riscv_abi[farg_abi_reg];
   state_t* state = proc->get_state();
   mmu_t* mmu = proc->get_mmu();
 
   addr_t filename_ptr = state->XPR[reg_idx];
   addr_t filename_struct = mmu->load<uint64_t>(filename_ptr);
-
-#ifdef DEBUG
-  pprintf("%s ptr 0x%" PRIx64 " *ptr 0x%" PRIx64 "\n",
-        farg_abi_reg.c_str(), filename_ptr, filename_struct);
-#endif
 
   uint8_t data;
   std::string name;
@@ -120,15 +99,72 @@ std::string Profiler::find_launched_binary(processor_t* proc) {
   return name;
 }
 
-bool Profiler::find_kernel_alloc_bprm(addr_t inst_va) {
+bool Profiler::find_kernel_function(addr_t inst_va, std::string fname) {
   ObjdumpParser* obj = objdumps.find("kernel")->second;
-  return (obj->get_func_start_va(k_alloc_bprm) == inst_va);
+  return (obj->get_func_start_va(fname) == inst_va);
+}
+
+bool Profiler::find_kernel_do_execveat_common(addr_t inst_va) {
+  return find_kernel_function(inst_va, k_do_execveat_common);
+}
+
+bool Profiler::find_kernel_set_mm_asid(addr_t inst_va) {
+  return find_kernel_function(inst_va, k_set_mm_asid);
+}
+
+bool Profiler::find_kernel_function_end(addr_t inst_va, std::string fname) {
+  ObjdumpParser* obj = objdumps.find("kernel")->second;
+  return (obj->get_func_end_va(fname) == inst_va);
 }
 
 // Kernel takes up the upper virtual address
 bool Profiler::user_space_addr(addr_t va) {
   addr_t va_hi = va >> 32;
   return ((va_hi & 0xffffffff) == 0);
+}
+
+void Profiler::step_until_kernel_function(std::string fname, trace_t& trace) {
+  do {
+    run_for(1);
+    auto ctrace = this->run_trace();
+    trace.insert(trace.end(), ctrace.begin(), ctrace.end());
+
+    addr_t pc = get_va_pc(0);
+    if (find_kernel_function(pc, fname))
+      break;
+  } while (true);
+}
+
+void Profiler::step_until_insn(std::string type, trace_t& trace) {
+  do {
+    run_for(1);
+    auto ctrace = this->run_trace();
+    trace.insert(trace.end(), ctrace.begin(), ctrace.end());
+
+    insn_t insn = ctrace.back().insn;
+    if (disasm.is_type(type, insn))
+      break;
+  } while (true);
+}
+
+state_t* Profiler::get_state(int hartid) {
+  processor_t* p = get_core(hartid);
+  return p->get_state();
+}
+
+addr_t Profiler::get_va_pc(int hartid) {
+  state_t* state = get_state(hartid);
+  return state->pc;
+}
+
+bool Profiler::called_by_do_execveat_common() {
+  if (fstack.size() == 0) return false;
+  auto back = fstack.back();
+  return (back.fn() == k_do_execveat_common);
+}
+
+CallStackInfo Profiler::callstack_top() {
+  return fstack.back();
 }
 
 int Profiler::run() {
@@ -146,34 +182,41 @@ int Profiler::run() {
     bool rewind = false;
     size_t fwd_steps = 0;
     trace_t pctrace = this->run_trace();
+    int popcnt = 0;
     for (size_t i = 0, cnt = pctrace.size(); i < cnt; i++) {
-      if (find_kernel_alloc_bprm(pctrace[i].pc)) {
+      if (find_kernel_do_execveat_common(pctrace[i].pc) ||
+          find_kernel_set_mm_asid(pctrace[i].pc)) {
         rewind = true;
         fwd_steps = i;
         pctrace.clear();
         break;
+      } else {
+        if (find_kernel_function_end(pctrace[i].pc, k_do_execveat_common) ||
+            find_kernel_function_end(pctrace[i].pc, k_set_mm_asid)) {
+          popcnt++;
+        }
       }
+    }
+
+    while (popcnt--) {
+      fstack.pop_back();
     }
 
     if (rewind) {
       trace_t rewind_trace;
-      size_t cur_steps = 0;
       load_ckpt(protobuf, false);
 
       size_t fastfwd_steps = (fwd_steps < INTERLEAVE) ?
                               fwd_steps :
                               fwd_steps - INTERLEAVE;
-
       run_for(fastfwd_steps);
       rewind_trace = this->run_trace();
       pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
-      cur_steps = fastfwd_steps;
 
       do {
         run_for(1);
         rewind_trace = this->run_trace();
         pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
-        cur_steps++;
 
         processor_t* proc = get_core(0);
         state_t* state = proc->get_state();
@@ -181,25 +224,33 @@ int Profiler::run() {
         addr_t asid = proc->get_asid();
 
         if (user_space_addr(va)) {
-          printf("0x%" PRIx64 " asid: %" PRIu64 "\n", va, asid);
           // print binary name for the current asid
           auto it = asid_to_bin.find(asid);
           if (it != asid_to_bin.end()) {
           }
-        } else if (find_kernel_alloc_bprm(va)) {
+        } else if (find_kernel_do_execveat_common(va)) {
           // map current asid with binary name
           std::string bin_path = find_launched_binary(proc);
 
           std::vector<std::string> words;
           split(words, bin_path, '/');
-
           std::string bin = words.back();
-          asid_to_bin.insert({asid, bin});
 
+          fstack.push_back(CallStackInfo(k_do_execveat_common, bin));
           run_for(1);
           rewind_trace = this->run_trace();
           pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
-          cur_steps++;
+          break;
+        } else if (find_kernel_set_mm_asid(va)) {
+          if (called_by_do_execveat_common()) {
+            step_until_insn(CSRW, pctrace);
+            asid = proc->get_asid();
+            std::string bin = callstack_top().bin();
+            asid_to_bin.insert({asid, bin});
+            pprintf("Found mapping ASID: %" PRIu64 " bin: %s\n", asid, bin.c_str());
+          }
+
+          fstack.push_back(CallStackInfo(k_set_mm_asid, ""));
           break;
         } else {
           // do nothing

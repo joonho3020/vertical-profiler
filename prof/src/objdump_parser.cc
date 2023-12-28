@@ -31,6 +31,13 @@ ObjdumpParser::ObjdumpParser(std::string objdump_path)
 
     if (in_func && (int)words.size() == 1) {
       in_func = false;
+
+      auto &cur_body = func_bodies.find(name)->second;
+      auto prev_line = cur_body.back();
+
+      words.clear();
+      split(words, prev_line);
+      func_end_va.insert({name, std::strtoul(words[0].c_str(), &end, 16)});
     } else if (in_func) {
       auto& cur_body = func_bodies.find(name)->second;
       cur_body.emplace_back(line);
@@ -93,6 +100,14 @@ addr_t ObjdumpParser::get_func_start_va(std::string func) {
   auto it = func_start_va.find(func);
   if (it == func_start_va.end()) {
     assert((void("Could not find function starting name in the objdump"), false));
+  }
+  return it->second;
+}
+
+addr_t ObjdumpParser::get_func_end_va(std::string func) {
+  auto it = func_end_va.find(func);
+  if (it == func_end_va.end()) {
+    assert((void("Could not find function ending name in the objdump"), false));
   }
   return it->second;
 }

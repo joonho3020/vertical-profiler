@@ -17,6 +17,8 @@
 #include "types.h"
 #include "objdump_parser.h"
 #include "thread_pool.h"
+#include "disam.h"
+#include "callstack_info.h"
 
 namespace Profiler {
 
@@ -44,13 +46,35 @@ public:
 
 private:
   const addr_t MAX_FILENAME_SIZE = 200;
-  bool find_kernel_alloc_bprm(addr_t inst_va);
+
   bool user_space_addr(addr_t va);
+
+  bool find_kernel_function(addr_t inst_va, std::string fname);
+  bool find_kernel_do_execveat_common(addr_t inst_va); // search for exec system call
+  bool find_kernel_set_mm_asid(addr_t inst_va);        // search for satp writes
+                                                       //
+  bool find_kernel_function_end(addr_t inst_va, std::string fname);
+
+  void step_until_kernel_function(std::string fname, trace_t& trace);
+  void step_until_insn(std::string type, trace_t& trace);
+
+  state_t* get_state(int hartid);
+  addr_t   get_va_pc(int hartid);
+
   std::map<std::string, ObjdumpParser*> objdumps;
   std::map<reg_t, std::string> asid_to_bin;
   std::map<std::string, unsigned int> riscv_abi;
 
+
+  Disassembler disasm;
+
+
+  bool called_by_do_execveat_common();
+  CallStackInfo callstack_top();
+  std::vector<CallStackInfo> fstack;
+
 private:
+  // Stuff for output logging
   std::string prof_outdir;
   uint64_t trace_idx = 0;
   void submit_trace_to_threadpool(trace_t& trace);

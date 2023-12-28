@@ -64,7 +64,9 @@ executable('profiler_main',
     'src/profiler.cc',
     'src/string_parser.cc',
     'src/objdump_parser.cc',
-    'src/thread_pool.cc'
+    'src/thread_pool.cc',
+    'src/disasm.cc',
+    'src/callstack_info.cc'
   ],
   dependencies : [
     lib_deps, spike_lib_deps
