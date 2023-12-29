@@ -14,6 +14,7 @@
 #include <riscv/sim_lib.h>
 #include <riscv/processor.h>
 
+#include "stack_unwinder.h"
 #include "types.h"
 #include "objdump_parser.h"
 #include "thread_pool.h"
@@ -25,6 +26,7 @@ namespace Profiler {
 class Profiler : public sim_lib_t {
 public:
   Profiler(std::vector<std::pair<std::string, std::string>> objdump_paths,
+      std::vector<std::pair<std::string, std::string>> dwarf_paths,
       const cfg_t *cfg, bool halted,
       std::vector<std::pair<reg_t, abstract_mem_t*>> mems,
       std::vector<device_factory_t*> plugin_device_factories,
@@ -36,13 +38,15 @@ public:
       bool socket_enabled,
       FILE *cmd_file,
       bool checkpoint,
-      const char* prof_outdir);
+      const char* prof_outdir,
+      FILE *stackfile);
 
   ~Profiler();
 
   std::string find_launched_binary(processor_t* proc);
 
   virtual int run() override;
+  void process_callstack();
 
 private:
   const addr_t MAX_FILENAME_SIZE = 200;
@@ -68,7 +72,6 @@ private:
 
   Disassembler disasm;
 
-
   bool called_by_do_execveat_common();
   CallStackInfo callstack_top();
   std::vector<CallStackInfo> fstack;
@@ -78,7 +81,12 @@ private:
   std::string prof_outdir;
   uint64_t trace_idx = 0;
   void submit_trace_to_threadpool(trace_t& trace);
+  std::string spiketrace_filename(uint64_t idx);
   ThreadPool loggers;
+
+private:
+  // Stuff for stack unwinding
+  StackUnwinder* stack_unwinder;
 };
 
 } // namespace Profiler

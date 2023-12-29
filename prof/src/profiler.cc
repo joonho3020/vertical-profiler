@@ -1,4 +1,5 @@
 
+#include <cstdlib>
 #include <string>
 #include <sys/types.h>
 #include <vector>
@@ -14,16 +15,29 @@
 #include <riscv/sim_lib.h>
 #include <riscv/mmu.h>
 
+#include "stack_unwinder.h"
 #include "types.h"
 #include "objdump_parser.h"
 #include "thread_pool.h"
 #include "string_parser.h"
 #include "profiler.h"
 
+
+// TODO : 
+// 1. Better parsing of dwarf_paths & objdump_paths.
+// Currently assumes that the user space dwarf & objdump has the same filename.
+// It receive be sth like "name,dwarf,objdump".
+//
+// 2. Check stack unwinding correctness
+//
+// 3. Better algorithm for checking if a function is called on top of a parent
+// function.
+
 namespace Profiler {
 
 Profiler::Profiler(
       std::vector<std::pair<std::string, std::string>> objdump_paths,
+      std::vector<std::pair<std::string, std::string>> dwarf_paths,
       const cfg_t *cfg, bool halted,
       std::vector<std::pair<reg_t, abstract_mem_t*>> mems,
       std::vector<device_factory_t*> plugin_device_factories,
@@ -35,7 +49,8 @@ Profiler::Profiler(
       bool socket_enabled,
       FILE *cmd_file,
       bool checkpoint,
-      const char *prof_outdir)
+      const char *prof_outdir,
+      FILE *stackfile)
   : sim_lib_t(cfg, halted, mems, plugin_device_factories, args, dm_config,
           log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file, checkpoint),
     prof_outdir(prof_outdir)
@@ -43,6 +58,8 @@ Profiler::Profiler(
   for (auto& p: objdump_paths) {
     objdumps.insert({p.first, new ObjdumpParser(p.second)});
   }
+
+  stack_unwinder = new StackUnwinder(dwarf_paths, stackfile);
 
   loggers.start();
 
@@ -231,12 +248,7 @@ int Profiler::run() {
         } else if (find_kernel_do_execveat_common(va)) {
           // map current asid with binary name
           std::string bin_path = find_launched_binary(proc);
-
-          std::vector<std::string> words;
-          split(words, bin_path, '/');
-          std::string bin = words.back();
-
-          fstack.push_back(CallStackInfo(k_do_execveat_common, bin));
+          fstack.push_back(CallStackInfo(k_do_execveat_common, bin_path));
           run_for(1);
           rewind_trace = this->run_trace();
           pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
@@ -265,26 +277,68 @@ int Profiler::run() {
   return rc;
 }
 
-void Profiler::submit_trace_to_threadpool(trace_t& trace) {
+std::string Profiler::spiketrace_filename(uint64_t idx) {
   std::string sfx;
-  if (trace_idx < 10) {
-    sfx = "000000" + std::to_string(trace_idx);
-  } else if (trace_idx < 100) {
-    sfx = "00000" + std::to_string(trace_idx);
-  } else if (trace_idx < 1000) {
-    sfx = "0000" + std::to_string(trace_idx);
-  } else if (trace_idx < 10000) {
-    sfx = "000" + std::to_string(trace_idx);
-  } else if (trace_idx < 100000) {
-    sfx = "00" + std::to_string(trace_idx);
-  } else if (trace_idx < 1000000) {
-    sfx = "0" + std::to_string(trace_idx);
+  if (idx < 10) {
+    sfx = "000000" + std::to_string(idx);
+  } else if (idx < 100) {
+    sfx = "00000" + std::to_string(idx);
+  } else if (idx < 1000) {
+    sfx = "0000" + std::to_string(idx);
+  } else if (idx < 10000) {
+    sfx = "000" + std::to_string(idx);
+  } else if (idx < 100000) {
+    sfx = "00" + std::to_string(idx);
+  } else if (idx < 1000000) {
+    sfx = "0" + std::to_string(idx);
   } else {
-    sfx = std::to_string(trace_idx);
+    sfx = std::to_string(idx);
   }
+  return ("SPIKETRACE-" + sfx);
+}
+
+void Profiler::submit_trace_to_threadpool(trace_t& trace) {
+  std::string name = prof_outdir + "/" + spiketrace_filename(trace_idx);
   ++trace_idx;
-  std::string name = prof_outdir + "/SPIKETRACE-" + sfx;
   loggers.queueJob(printLogs, trace, name);
+}
+
+
+void Profiler::process_callstack() {
+  pprintf("Start stack unwinding\n");
+
+  // FIXME : just increment cycle every insn
+  uint64_t cycle = 0;
+
+  for (uint64_t i = 0; i < trace_idx; i++) {
+    std::string path = prof_outdir + "/" + spiketrace_filename(i);
+    std::ifstream spike_trace = std::ifstream(path, std::ios::binary);
+    if (!spike_trace) {
+      std::cerr << path << " does not exist" << std::endl;
+      exit(1);
+    }
+
+    std::string line;
+    std::vector<std::string> words;
+    while (std::getline(spike_trace, line)) {
+      split(words, line);
+      uint64_t addr = std::stoull(words[0], 0, 0);
+      uint64_t asid = std::stoull(words[1], 0, 0);
+      uint64_t prv  = std::stoull(words[2], 0, 0);
+      words.clear();
+/* std::string prev_prv = words[3]; // TODO don't need? */
+
+      if (user_space_addr(addr)) {
+        std::string binpath = asid_to_bin[asid];
+        std::vector<std::string> subpath;
+        split(subpath, binpath, '/');
+        stack_unwinder->addInstruction(addr, cycle, subpath.back());
+      } else {
+        stack_unwinder->addInstruction(addr, cycle, "kernel");
+      }
+      cycle++;
+    }
+  }
 }
 
 } // namespace Profiler

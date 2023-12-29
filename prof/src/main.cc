@@ -59,23 +59,21 @@ int main(int argc, char** argv) {
     words.clear();
   }
 #else
-  /*
   std::vector<std::string> words;
   uint64_t cycle = 0;
   while (getline(is, line)) {
     split(line, words, ' ');
-    if ((int)words.size() < 6 || words[0] != "core") {
+    if ((int)words.size() < 4) {
       continue;
     }
     ++cycle;
 
-    std::string addr_str = words[4];
+    std::string addr_str = words[0];
     uint64_t addr_offset = 0xffffffff00000000LL;
     uint64_t addr = (uint64_t)strtoull(addr_str.c_str(), NULL, 16) | addr_offset;
     t->addInstruction(addr, cycle);
     words.clear();
   }
-  */
 #endif
   return 0;
 }

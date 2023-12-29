@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -e
+set -ex
 
 _usage() {
     echo "usage: ${0} [-t] <tracefile> [svg]" >&2

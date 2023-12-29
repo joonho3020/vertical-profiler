@@ -36,6 +36,15 @@ objdump_parser_lib = library('objdump_parser_lib',
   link_with : string_parser_lib,
   dependencies : [lib_deps])
 
+tracerv_lib = library('tracerv_lib',
+  [
+    'src/tracerv_dwarf.cc',
+    'src/tracerv_elf.cc',
+    'src/tracerv_processing.cc',
+    'src/trace_tracker.cc'
+  ],
+  dependencies : [lib_deps])
+
 executable('file_splitter',
   'src/file_splitter_main.cc',
   link_with : [
@@ -45,13 +54,10 @@ executable('file_splitter',
 
 executable('main',
   [
-    'src/main.cc',
-    'src/trace_tracker.cc',
-    'src/tracerv_dwarf.cc',
-    'src/tracerv_elf.cc',
-    'src/tracerv_processing.cc'
+    'src/main.cc'
   ],
   link_with : [
+    tracerv_lib,
     string_parser_lib,
     file_splitter_lib,
   ],
@@ -66,7 +72,11 @@ executable('profiler_main',
     'src/objdump_parser.cc',
     'src/thread_pool.cc',
     'src/disasm.cc',
-    'src/callstack_info.cc'
+    'src/callstack_info.cc',
+    'src/stack_unwinder.cc'
+  ],
+  link_with : [
+    tracerv_lib
   ],
   dependencies : [
     lib_deps, spike_lib_deps
@@ -75,6 +85,17 @@ executable('profiler_main',
     spike_hdr_incs,
     protobuf_hdr_incs
   ])
+
+executable('stack_unwinder_main',
+  [
+    'src/stack_unwinder_main.cc',
+    'src/stack_unwinder.cc'
+  ],
+  link_with : [
+    string_parser_lib,
+    tracerv_lib
+  ],
+  dependencies : [lib_deps])
 
 string_parser_test = executable('test_string_parser',
   'test/test_string_parser.cc',

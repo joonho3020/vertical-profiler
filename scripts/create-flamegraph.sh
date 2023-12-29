@@ -5,22 +5,18 @@ set -ex
 
 CURDIR=$(pwd)
 
+TESTDIR=$CURDIR/../test-io/
+TRACEDIR=$CURDIR/../prof/builddir/out
 
-
-if ! [ -f main ]; then
-  make
-fi
-
-source env.sh
-
-SMALLTRACE_DIR=$CURDIR/traces/spike-linux-trace
-TRACEFILE=$SMALLTRACE_DIR/TRACEFILE-SPIKE
-DWARFFILE=$SMALLTRACE_DIR/linux-poweroff-bin-dwarf
+TRACEFILE=$TRACEDIR/SPIKETRACE-0010430
+DWARFFILE=$TESTDIR/test-binaries/linux-workloads/linux-workloads-bin-dwarf
 
 DATE=$(date '+%Y-%m-%d-%H-%M')
-OUTPUT_DIR=$CURDIR/output-dir/$DATE-out
+OUTPUT_DIR=$TESTDIR/$DATE-out
 TRACE_DIR=$OUTPUT_DIR/traces
 mkdir -p $TRACE_DIR
 
+cd $CURDIR/../prof/builddir
 ./main $TRACEFILE $DWARFFILE > $TRACE_DIR/TRACEFILE-SPIKE
+cd ..
 fireperf/gen-all-flamegraphs-fireperf.sh  $OUTPUT_DIR

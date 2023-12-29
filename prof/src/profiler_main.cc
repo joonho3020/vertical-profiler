@@ -86,8 +86,10 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --dm-no-impebreak     Debug module won't support implicit ebreak in program buffer\n");
   fprintf(stderr, "  --blocksz=<size>      Cache block size (B) for CMO operations(powers of 2) [default 64]\n");
   fprintf(stderr, "  --kernel-obj=<name>   Objdump of kernel\n");
-  fprintf(stderr, "  --user-obj=<name>     Objdump of user space program\n");
+  fprintf(stderr, "  --user-dwarf=<name>   Dwarf of user space program\n");
+  fprintf(stderr, "  --kernel-dwarf=<name> Dwarf of kernel\n");
   fprintf(stderr, "  --prof-out=<name>     Directory to output profiling data\n");
+  fprintf(stderr, "  --callstack=<name>    Unwinded stack file\n");
 
   exit(exit_code);
 }
@@ -381,6 +383,7 @@ int main(int argc, char** argv)
   };
 
   std::vector<std::pair<std::string, std::string>> objdump_paths;
+  std::vector<std::pair<std::string, std::string>> dwarf_paths;
 
   option_parser_t parser;
   parser.help(&suggest_help);
@@ -476,11 +479,24 @@ int main(int argc, char** argv)
     std::string path = s;
     objdump_paths.push_back({"kernel", s});
   });
-  parser.option(0, "user-obj", 1, [&](const char *s){
+  parser.option(0, "user-dwarf", 1, [&](const char *s){
     std::string path = s;
     std::vector<std::string> words;
     Profiler::split(words, path, '/');
-    objdump_paths.push_back({words.back(), path});
+    dwarf_paths.push_back({words.back(), path});
+  });
+  parser.option(0, "kernel-dwarf", 1, [&](const char *s){
+    std::string path = s;
+    std::vector<std::string> words;
+    Profiler::split(words, path, '/');
+    dwarf_paths.push_back({"kernel", path});
+  });
+  FILE *callstack = NULL;
+  parser.option(0, "callstack", 1, [&](const char* s){
+     if ((callstack = fopen(s, "w"))==NULL) {
+        fprintf(stderr, "Unable to open callstack file '%s'\n", s);
+        exit(-1);
+     }
   });
 
   auto argv1 = parser.parse(argv);
@@ -541,8 +557,9 @@ int main(int argc, char** argv)
   }
 
 
-  Profiler::Profiler p(objdump_paths, &cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
-      log_path, dtb_enabled, dtb_file, socket, cmd_file, true, prof_outdir);
+  Profiler::Profiler p(objdump_paths, dwarf_paths, &cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
+      log_path, dtb_enabled, dtb_file, socket, cmd_file,
+      true, prof_outdir, callstack);
 
   if (dump_dts) {
     printf("%s", p.get_dts());
@@ -552,5 +569,7 @@ int main(int argc, char** argv)
   p.set_debug(debug);
 
   auto return_code = p.run();
+  p.process_callstack();
+
   return return_code;
 }
