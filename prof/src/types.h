@@ -19,6 +19,8 @@ typedef uint64_t reg_t;
 
 #define k_set_mm_asid "set_mm_asid"
 
+#define KERNEL "k"
+
 
 #define XPR_CNT 32
 

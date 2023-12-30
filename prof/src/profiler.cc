@@ -28,10 +28,12 @@
 // Currently assumes that the user space dwarf & objdump has the same filename.
 // It receive be sth like "name,dwarf,objdump".
 //
-// 2. Check stack unwinding correctness
+// 2. Perf optimizations
 //
 // 3. Better algorithm for checking if a function is called on top of a parent
-// function.
+// function. 
+//
+// 4. API for registering things to monitor rather than manually hand coding them
 
 namespace Profiler {
 
@@ -83,7 +85,7 @@ Profiler::~Profiler() {
 }
 
 std::string Profiler::find_launched_binary(processor_t* proc) {
-  ObjdumpParser *obj = objdumps.find("kernel")->second;
+  ObjdumpParser *obj = objdumps.find(KERNEL)->second;
   std::string farg_abi_reg = obj->func_args_reg(k_do_execveat_common,
                                                 k_do_execveat_common_filename_arg);
 
@@ -120,7 +122,7 @@ std::string Profiler::find_launched_binary(processor_t* proc) {
 }
 
 bool Profiler::find_kernel_function(addr_t inst_va, std::string fname) {
-  ObjdumpParser* obj = objdumps.find("kernel")->second;
+  ObjdumpParser* obj = objdumps.find(KERNEL)->second;
   return (obj->get_func_start_va(fname) == inst_va);
 }
 
@@ -133,7 +135,7 @@ bool Profiler::find_kernel_set_mm_asid(addr_t inst_va) {
 }
 
 bool Profiler::find_kernel_function_end(addr_t inst_va, std::string fname) {
-  ObjdumpParser* obj = objdumps.find("kernel")->second;
+  ObjdumpParser* obj = objdumps.find(KERNEL)->second;
   return (obj->get_func_end_va(fname) == inst_va);
 }
 
@@ -346,7 +348,7 @@ void Profiler::process_callstack() {
         split(subpath, binpath, '/');
         stack_unwinder->addInstruction(addr, cycle, subpath.back());
       } else {
-        stack_unwinder->addInstruction(addr, cycle, "kernel");
+        stack_unwinder->addInstruction(addr, cycle, KERNEL);
       }
       cycle++;
     }

@@ -85,9 +85,8 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --dm-no-halt-groups   Debug module won't support halt groups\n");
   fprintf(stderr, "  --dm-no-impebreak     Debug module won't support implicit ebreak in program buffer\n");
   fprintf(stderr, "  --blocksz=<size>      Cache block size (B) for CMO operations(powers of 2) [default 64]\n");
-  fprintf(stderr, "  --kernel-obj=<name>   Objdump of kernel\n");
-  fprintf(stderr, "  --user-dwarf=<name>   Dwarf of user space program\n");
-  fprintf(stderr, "  --kernel-dwarf=<name> Dwarf of kernel\n");
+  fprintf(stderr, "  --kernel-info=<name>  <objdump,dwarf> of kernel\n");
+  fprintf(stderr, "  --user-info=<name>    <objdump,dwarf>+<objdump,dwarf>... of space programs\n");
   fprintf(stderr, "  --prof-out=<name>     Directory to output profiling data\n");
   fprintf(stderr, "  --callstack=<name>    Unwinded stack file\n");
 
@@ -475,21 +474,32 @@ int main(int argc, char** argv)
       exit(-1);
     }
   });
-  parser.option(0, "kernel-obj", 1, [&](const char *s){
-    std::string path = s;
-    objdump_paths.push_back({"kernel", s});
+  parser.option(0, "kernel-info", 1, [&](const char *s){
+    std::string info = s;
+    std::vector<std::string> paths;
+    Profiler::split(paths, info, ',');
+    assert(paths.size() == 2);
+    objdump_paths.push_back({KERNEL, paths[0]});
+    dwarf_paths.push_back({KERNEL, paths[1]});
   });
-  parser.option(0, "user-dwarf", 1, [&](const char *s){
-    std::string path = s;
-    std::vector<std::string> words;
-    Profiler::split(words, path, '/');
-    dwarf_paths.push_back({words.back(), path});
-  });
-  parser.option(0, "kernel-dwarf", 1, [&](const char *s){
-    std::string path = s;
-    std::vector<std::string> words;
-    Profiler::split(words, path, '/');
-    dwarf_paths.push_back({"kernel", path});
+  parser.option(0, "user-info", 1, [&](const char *s){
+    std::string all_users = s;
+    std::vector<std::string> per_user;
+    Profiler::split(per_user, all_users, '+');
+
+    for (std::string user : per_user) {
+      std::vector<std::string> info;
+      Profiler::split(info, user, ',');
+      assert(info.size() == 2);
+
+      std::vector<std::string> dirs;
+      Profiler::split(dirs, info[0], '/');
+      objdump_paths.push_back({dirs.back(), info[0]});
+
+      dirs.clear();
+      Profiler::split(dirs, info[1], '/');
+      dwarf_paths.push_back({dirs.back(), info[0]});
+    }
   });
   FILE *callstack = NULL;
   parser.option(0, "callstack", 1, [&](const char* s){

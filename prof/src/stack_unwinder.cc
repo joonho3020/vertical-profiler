@@ -25,8 +25,10 @@ void StackUnwinder::addInstruction(uint64_t inst_addr,
                                    std::string binary) {
   auto bit = bin_dumps.find(binary);
   Instr *this_instr = nullptr;
+  std::string label_pfx = "";
   if (bit != bin_dumps.end()) {
     this_instr = bit->second->getInstrFromAddr(inst_addr);
+    label_pfx = binary;
 
     // At this point, we found a objdump for this instruction. So the
     // ObjdumpedBinary should be able to return use a valid instruction.
@@ -52,6 +54,7 @@ void StackUnwinder::addInstruction(uint64_t inst_addr,
         }
       }
       LabelMeta *new_label = new LabelMeta();
+      new_label->label_pfx = label_pfx;
       new_label->label = userspace_misc;
       new_label->start_cycle = cycle;
       new_label->end_cycle = cycle;
@@ -87,6 +90,7 @@ void StackUnwinder::addInstruction(uint64_t inst_addr,
         delete pop_label;
 
         LabelMeta *new_label = new LabelMeta();
+        new_label->label_pfx = label_pfx;
         new_label->label = label;
         new_label->start_cycle = cycle;
         new_label->end_cycle = cycle;
@@ -130,6 +134,7 @@ void StackUnwinder::addInstruction(uint64_t inst_addr,
         }
       } else { // new function, add to stack top
         LabelMeta *new_label = new LabelMeta();
+        new_label->label_pfx = label_pfx;
         new_label->label = label;
         new_label->start_cycle = cycle;
         new_label->end_cycle = cycle;

@@ -7,13 +7,14 @@
 
 class LabelMeta {
 public:
+  std::string label_pfx;
   std::string label;
   uint64_t start_cycle;
   uint64_t end_cycle;
   uint64_t indent;
   bool asm_sequence;
 
-  LabelMeta() { this->asm_sequence = false; }
+  LabelMeta() { this->asm_sequence = false; this->label_pfx = ""; }
 
   void pre_print(FILE *tracefile) {
 #ifdef INDENT_SPACES
@@ -25,8 +26,9 @@ public:
             start_cycle);
 #else
     fprintf(tracefile,
-            "Indent: %" PRIu64 ", Start label: %s, At cycle: %" PRIu64 "\n",
+            "Indent: %" PRIu64 ", Start label: %s-%s, At cycle: %" PRIu64 "\n",
             indent,
+            label_pfx.c_str(),
             label.c_str(),
             start_cycle);
 #endif
@@ -42,8 +44,9 @@ public:
             end_cycle);
 #else
     fprintf(tracefile,
-            "Indent: %" PRIu64 ", End label: %s, End cycle: %" PRIu64 "\n",
+            "Indent: %" PRIu64 ", End label: %s-%s, End cycle: %" PRIu64 "\n",
             indent,
+            label_pfx.c_str(),
             label.c_str(),
             end_cycle);
 #endif

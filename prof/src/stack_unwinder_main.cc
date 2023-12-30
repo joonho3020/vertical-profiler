@@ -8,6 +8,7 @@
 
 #include "stack_unwinder.h"
 #include "string_parser.h"
+#include "types.h"
 
 
 std::string spiketrace_filename(uint64_t idx) {
@@ -47,7 +48,7 @@ int main() {
   }
 
   std::vector<std::pair<std::string, std::string>> dwarf_paths;
-  dwarf_paths.push_back({"kernel",            "../../test-io/test-binaries/linux-workloads/linux-workloads-bin-dwarf"});
+  dwarf_paths.push_back({KERNEL,            "../../test-io/test-binaries/linux-workloads/linux-workloads-bin-dwarf"});
   dwarf_paths.push_back({"hello.linux.riscv", "../../test-io/test-binaries/linux-workloads/overlay/root/hello.linux.riscv"});
 
   std::map<uint64_t, std::string> asid_to_bin;
@@ -107,7 +108,7 @@ int main() {
         Profiler::split(subpath, binpath, '/');
         stack_unwinder->addInstruction(addr, cycle, subpath.back());
       } else {
-        stack_unwinder->addInstruction(addr, cycle, "kernel");
+        stack_unwinder->addInstruction(addr, cycle, KERNEL);
       }
       cycle++;
     }
