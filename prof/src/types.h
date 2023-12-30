@@ -8,7 +8,9 @@ namespace Profiler {
 typedef uint64_t addr_t;
 typedef uint64_t reg_t;
 
-#define pprintf(...) printf( "[prof] " __VA_ARGS__ )
+#define pprintf(...)                       \
+  fprintf(stdout, "[prof] " __VA_ARGS__ ); \
+  fflush(stdout);
 
 
 

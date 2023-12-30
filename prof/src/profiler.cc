@@ -109,6 +109,9 @@ std::string Profiler::find_launched_binary(processor_t* proc) {
     offset++;
   } while ((data != 0) && (offset < MAX_FILENAME_SIZE));
 
+  // C strings are null terminated. However C++ std::string isn't.
+  name.pop_back();
+
   addr_t va = state->pc;
   addr_t asid = proc->get_asid();
   pprintf("find_launced_binary done %s va: 0x% " PRIx64 " asid: %" PRIu64 "\n",
@@ -274,6 +277,13 @@ int Profiler::run() {
 
   loggers.stop();
   auto rc = stop_sim();
+
+  std::ofstream os("ASID-MAPPING", std::ofstream::out);
+  for (auto x : asid_to_bin) {
+    os << x.first << " " << x.second << "\n";
+  }
+  os.close();
+
   return rc;
 }
 
@@ -319,17 +329,19 @@ void Profiler::process_callstack() {
     }
 
     std::string line;
+    std::string::size_type sz = 0;
     std::vector<std::string> words;
     while (std::getline(spike_trace, line)) {
       split(words, line);
-      uint64_t addr = std::stoull(words[0], 0, 0);
-      uint64_t asid = std::stoull(words[1], 0, 0);
-      uint64_t prv  = std::stoull(words[2], 0, 0);
-      words.clear();
+      uint64_t addr = std::stoull(words[0], &sz, 16);
+      uint64_t asid = std::stoull(words[1], &sz, 10);
+      uint64_t prv  = std::stoull(words[2], &sz, 10);
 /* std::string prev_prv = words[3]; // TODO don't need? */
+      words.clear();
 
-      if (user_space_addr(addr)) {
-        std::string binpath = asid_to_bin[asid];
+      auto it = asid_to_bin.find(asid);
+      if (user_space_addr(addr) && it != asid_to_bin.end()) {
+        std::string binpath = it->second;
         std::vector<std::string> subpath;
         split(subpath, binpath, '/');
         stack_unwinder->addInstruction(addr, cycle, subpath.back());

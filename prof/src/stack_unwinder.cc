@@ -24,7 +24,6 @@ void StackUnwinder::addInstruction(uint64_t inst_addr,
                                    uint64_t cycle,
                                    std::string binary) {
   auto bit = bin_dumps.find(binary);
-
   Instr *this_instr = nullptr;
   if (bit != bin_dumps.end()) {
     this_instr = bit->second->getInstrFromAddr(inst_addr);
@@ -63,8 +62,6 @@ void StackUnwinder::addInstruction(uint64_t inst_addr,
     }
   } else {
     std::string label = this_instr->function_name;
-
-/* printf("addr: %" PRIx64 " fn: %s\n", inst_addr, label.c_str()); */
 
     // if there is a userspace_misc, pop
     if ((label_stack.size() > 0) &&

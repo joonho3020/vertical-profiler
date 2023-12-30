@@ -52,11 +52,29 @@ int main() {
 
   std::map<uint64_t, std::string> asid_to_bin;
 
-  asid_to_bin[87]  = "/bin/sh";
-  asid_to_bin[104] = "/firemarshal.sh";
-  asid_to_bin[106] = "./hello.linux.riscv";
+  std::ifstream a2b_file = std::ifstream("ASID-MAPPING", std::ios::binary);
+  if (!a2b_file) {
+    std::cerr << "ASID-MAPPING" << " does not exist" << std::endl;
+    exit(1);
+  }
 
-  const uint64_t trace_idx = 17818;
+  std::string line;
+  std::vector<std::string> words;
+  std::string::size_type sz = 0;
+
+  while (std::getline(a2b_file, line)) {
+    words.clear();
+    Profiler::split(words, line);
+    uint64_t k = std::stoull(words[0], &sz, 10);
+
+    auto x = words[1];
+    words.clear();
+    Profiler::split(words, x, '/');
+
+    asid_to_bin[k] = words.back();
+  }
+
+  const uint64_t trace_idx = 20000;
 
   Profiler::StackUnwinder *stack_unwinder = new Profiler::StackUnwinder(
       dwarf_paths,
@@ -73,18 +91,15 @@ int main() {
       exit(1);
     }
 
-    std::string line;
-    std::string::size_type sz = 0;
 
-    std::vector<std::string> words;
     while (std::getline(spike_trace, line)) {
 /* std::cout << line << std::endl; */
+      words.clear();
       Profiler::split(words, line);
       uint64_t addr = std::stoull(words[0], &sz, 16);
       uint64_t asid = std::stoull(words[1], &sz, 10);
-      uint64_t prv  = std::stoull(words[2], &sz, 10);
+/* uint64_t prv  = std::stoull(words[2], &sz, 10); */
 /* std::string prev_prv = words[3]; // TODO don't need? */
-      words.clear();
 
       if (user_space_addr(addr)) {
         std::string binpath = asid_to_bin[asid];
