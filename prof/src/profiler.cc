@@ -16,12 +16,22 @@
 #include <riscv/sim_lib.h>
 #include <riscv/mmu.h>
 
+#include "callstack_info.h"
 #include "stack_unwinder.h"
 #include "types.h"
 #include "objdump_parser.h"
 #include "thread_pool.h"
 #include "string_parser.h"
 #include "profiler.h"
+
+// TODO : 
+// 3. Better algorithm for checking if a function is called on top of a parent
+// function. 
+//  - TODO : return CallStackInfo* in Function
+//
+// 4. API for registering things to monitor rather than manually hand coding them
+
+/* #define PROFILER_ASSERT */
 
 #define GET_TIME() std::chrono::high_resolution_clock::now()
 
@@ -43,20 +53,6 @@
 
 #define PRINT_AVG_TIME_STAT(N, T, C) \
   pprintf("Avg (us) %s: %f / %" PRIu64 "  = %f\n", N, T, C, T/C)
-
-
-
-// TODO : 
-// 1. Better parsing of dwarf_paths & objdump_paths.
-// Currently assumes that the user space dwarf & objdump has the same filename.
-// It receive be sth like "name,dwarf,objdump".
-//
-// 2. Perf optimizations
-//
-// 3. Better algorithm for checking if a function is called on top of a parent
-// function. 
-//
-// 4. API for registering things to monitor rather than manually hand coding them
 
 namespace Profiler {
 
@@ -98,6 +94,20 @@ Profiler::Profiler(
   for (int i = 0; i < XPR_CNT; i++) {
     riscv_abi.insert({iregs[i], i});
   }
+
+  Function* f1 =
+     new  Function_k_do_execveat_common(
+         k_do_execveat_common,
+         kernel_function_start_addr(k_do_execveat_common),
+         kernel_function_end_addr  (k_do_execveat_common));
+  this->add_kernel_function(f1);
+
+  Function* f2 =
+     new  Function_k_set_mm_asid(
+         k_set_mm_asid,
+         kernel_function_start_addr(k_set_mm_asid),
+         kernel_function_end_addr  (k_set_mm_asid));
+  this->add_kernel_function(f2);
 }
 
 Profiler::~Profiler() {
@@ -107,41 +117,39 @@ Profiler::~Profiler() {
   objdumps.clear();
 }
 
-std::string Profiler::find_launched_binary(processor_t* proc) {
-  ObjdumpParser *obj = objdumps.find(KERNEL)->second;
-  std::string farg_abi_reg = obj->func_args_reg(k_do_execveat_common,
-                                                k_do_execveat_common_filename_arg);
+void Profiler::add_kernel_function(Function* f) {
+  prof_sa_to_func[f->va_start()] = f;
+  prof_func_start_addrs.push_back(f->va_start());
+  prof_func_end_addrs.push_back(f->va_end());
+}
 
-  if (riscv_abi.find(farg_abi_reg) == riscv_abi.end()) {
-    fprintf(stderr, "ABI mismatch: %s, PC: 0x%" PRIx64 "\n",
-        farg_abi_reg, proc->get_state()->pc);
+unsigned int Profiler::get_riscv_abi_ireg(std::string rname) {
+#ifdef PROFILER_ASSERT
+  if (riscv_abi.find(rname) == riscv_abi.end()) {
+    fprintf(stderr, "ABI mismatch: %s\n", rname.c_str());
     exit(1);
   }
+#endif
+  return riscv_abi[rname];
+}
 
-  unsigned int reg_idx = riscv_abi[farg_abi_reg];
-  state_t* state = proc->get_state();
-  mmu_t* mmu = proc->get_mmu();
+ObjdumpParser* Profiler::get_objdump_parser(std::string oname) {
+#ifdef PROFILER_ASSERT
+  if (objdumps.find(oname) == objdumps.end()) {
+    fprintf(stderr, "Objdump mismatch: %s\n", oname.c_str());
+    exit(1);
+  }
+#endif
+  return objdumps.find(oname)->second;
+}
 
-  addr_t filename_ptr = state->XPR[reg_idx];
-  addr_t filename_struct = mmu->load<uint64_t>(filename_ptr);
 
-  uint8_t data;
-  std::string name;
-  addr_t offset = 0;
-  do {
-    data = mmu->load<uint8_t>(filename_struct + offset);
-    name.push_back((char)data);
-    offset++;
-  } while ((data != 0) && (offset < MAX_FILENAME_SIZE));
+std::vector<CallStackInfo>& Profiler::get_callstack() {
+  return fstack;
+}
 
-  // C strings are null terminated. However C++ std::string isn't.
-  name.pop_back();
-
-  addr_t va = state->pc;
-  addr_t asid = proc->get_asid();
-  pprintf("find_launced_binary done %s va: 0x% " PRIx64 " asid: %" PRIu64 "\n",
-          name.c_str(), va, asid);
-  return name;
+std::map<reg_t, std::string>& Profiler::get_asid2bin_map() {
+  return asid_to_bin;
 }
 
 addr_t Profiler::kernel_function_start_addr(std::string fname) {
@@ -152,6 +160,20 @@ addr_t Profiler::kernel_function_start_addr(std::string fname) {
 addr_t Profiler::kernel_function_end_addr(std::string fname) {
   ObjdumpParser* obj = objdumps.find(KERNEL)->second;
   return obj->get_func_end_va(fname);
+}
+
+bool Profiler::found_registered_func_start_addr(addr_t va) {
+  for (auto &x : prof_func_start_addrs) {
+    if (unlikely(x == va)) return true;
+  }
+  return false;
+}
+
+bool Profiler::found_registered_func_end_addr(addr_t va) {
+  for (auto &x : prof_func_end_addrs) {
+    if (unlikely(x == va)) return true;
+  }
+  return false;
 }
 
 // Kernel takes up the upper virtual address
@@ -170,16 +192,6 @@ void Profiler::step_until_insn(std::string type, trace_t& trace) {
     if (disasm.is_type(type, insn))
       break;
   } while (true);
-}
-
-bool Profiler::called_by_do_execveat_common() {
-  if (fstack.size() == 0) return false;
-  auto back = fstack.back();
-  return (back.fn() == k_do_execveat_common);
-}
-
-CallStackInfo Profiler::callstack_top() {
-  return fstack.back();
 }
 
 int Profiler::run() {
@@ -236,16 +248,12 @@ int Profiler::run() {
     auto trace_check_s = GET_TIME();
     for (size_t i = 0, cnt = pctrace.size(); i < cnt; i++) {
       reg_t pc = pctrace[i].pc;
-      if (unlikely(
-          (pc == do_execveat_common_start) ||
-          (pc == set_mm_asid_start))) {
+      if (found_registered_func_start_addr(pc)) {
         rewind = true;
         fwd_steps = i;
         pctrace.clear();
         break;
-      } else if (unlikely(
-          (pc == do_execveat_common_end) ||
-          (pc == set_mm_asid_end))) {
+      } else if (found_registered_func_end_addr(pc)) {
         popcnt++;
       }
     }
@@ -271,63 +279,38 @@ int Profiler::run() {
       run_for(fastfwd_steps);
       rewind_trace = this->run_trace();
       pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
+
+#ifdef PROFILER_ASSERT
       if (unlikely(fwd_steps < rewind_trace.size())) {
         printf("fwd_steps: %" PRIu64 " < fastfwd_steps: % " PRIu64 "\n",
             fwd_steps, rewind_trace.size());
         exit(1);
       }
+#endif PROFILER_ASSERT
 
+      bool found_function = false;
       do {
         processor_t* proc = get_core(0);
         state_t* state = proc->get_state();
         addr_t va = state->pc;
         addr_t asid = proc->get_asid();
 
-        if (user_space_addr(va)) {
-          // print binary name for the current asid
-          auto it = asid_to_bin.find(asid);
-          if (it != asid_to_bin.end()) {
+        for (auto& sa : prof_func_start_addrs) {
+          if (unlikely(sa == va)) {
+            auto f = prof_sa_to_func[va];
+            CallStackInfo entry = f->update_profiler(this, pctrace);
+            fstack.push_back(entry);
+            found_function = true;
+            break;
           }
-        } else if (unlikely(va == do_execveat_common_start)) {
-          // map current asid with binary name
-          std::string bin_path = find_launched_binary(proc);
-          fstack.push_back(CallStackInfo(k_do_execveat_common, bin_path));
-          run_for(1);
-          rewind_trace = this->run_trace();
-          pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
-
-          run_for(1);
-          rewind_trace = this->run_trace();
-          pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
-          INCREMENT_CNTR(single_step_cnt);
-
-          break;
-        } else if (unlikely(va == set_mm_asid_start)) {
-          if (called_by_do_execveat_common()) {
-            step_until_insn(CSRW, pctrace);
-            asid = proc->get_asid();
-            std::string bin = callstack_top().bin();
-            asid_to_bin.insert({asid, bin});
-            pprintf("Found mapping ASID: %" PRIu64 " bin: %s\n", asid, bin.c_str());
-          }
-
-          fstack.push_back(CallStackInfo(k_set_mm_asid, ""));
-
-          run_for(1);
-          rewind_trace = this->run_trace();
-          pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
-          INCREMENT_CNTR(single_step_cnt);
-
-          break;
-        } else {
-          // do nothing
         }
+
         run_for(1);
         rewind_trace = this->run_trace();
         pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
         INCREMENT_CNTR(single_step_cnt);
 
-      } while (true);
+      } while (!found_function);
 
       auto rewind_e = GET_TIME();
       MEASURE_AVG_TIME(rewind_s, rewind_e, rewind_us, rewind_cnt);

@@ -43,28 +43,41 @@ public:
 
   ~Profiler();
 
-  std::string find_launched_binary(processor_t* proc);
-
   virtual int run() override;
   void process_callstack();
 
+  // TODO : error checking if the function exists
+  void add_kernel_function(Function* f);
+
+  unsigned int   get_riscv_abi_ireg(std::string rname);
+  ObjdumpParser* get_objdump_parser(std::string oname);
+
+  std::vector<CallStackInfo>& get_callstack();
+  std::map<reg_t, std::string>& get_asid2bin_map();
+
+  void step_until_insn(std::string type, trace_t& trace);
+
 private:
-  const addr_t MAX_FILENAME_SIZE = 200;
+  std::map<addr_t, Function*> prof_sa_to_func;
+  std::vector<addr_t> prof_func_start_addrs;
+  std::vector<addr_t> prof_func_end_addrs;
+
+  inline bool found_registered_func_start_addr(addr_t va);
+  inline bool found_registered_func_end_addr(addr_t va);
 
   bool   user_space_addr(addr_t va);
   addr_t kernel_function_start_addr(std::string fname);
   addr_t kernel_function_end_addr(std::string fname);
-  void   step_until_insn(std::string type, trace_t& trace);
 
   std::map<std::string, ObjdumpParser*> objdumps;
-  std::map<reg_t, std::string> asid_to_bin;
   std::map<std::string, unsigned int> riscv_abi;
 
   Disassembler disasm;
 
-  bool called_by_do_execveat_common();
-  CallStackInfo callstack_top();
   std::vector<CallStackInfo> fstack;
+
+
+  std::map<reg_t, std::string> asid_to_bin;
 
 private:
   // Stuff for output logging
