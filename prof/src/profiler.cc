@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <vector>
 #include <map>
+#include <chrono>
 
 #include <riscv/cfg.h>
 #include <riscv/debug_module.h>
@@ -21,6 +22,28 @@
 #include "thread_pool.h"
 #include "string_parser.h"
 #include "profiler.h"
+
+#define GET_TIME() std::chrono::high_resolution_clock::now()
+
+#define MEASURE_TIME(S, E, T) \
+  T += std::chrono::duration_cast<std::chrono::microseconds>(E - S).count()
+
+#define PRINT_TIME_STAT(N, T) \
+  pprintf("Time (s) %s: %f\n", N, T / (1000 * 1000))
+
+#define INCREMENT_CNTR(C) \
+  C++
+
+#define PRINT_CNTR_STAT(N, X) \
+  pprintf("Cntr %s: %" PRIu64 "\n", N, X)
+
+#define MEASURE_AVG_TIME(S, E, T, C) \
+  MEASURE_TIME(S, E, T);             \
+  INCREMENT_CNTR(C);
+
+#define PRINT_AVG_TIME_STAT(N, T, C) \
+  pprintf("Avg (us) %s: %f / %" PRIu64 "  = %f\n", N, T, C, T/C)
+
 
 
 // TODO : 
@@ -121,40 +144,20 @@ std::string Profiler::find_launched_binary(processor_t* proc) {
   return name;
 }
 
-bool Profiler::find_kernel_function(addr_t inst_va, std::string fname) {
+addr_t Profiler::kernel_function_start_addr(std::string fname) {
   ObjdumpParser* obj = objdumps.find(KERNEL)->second;
-  return (obj->get_func_start_va(fname) == inst_va);
+  return obj->get_func_start_va(fname);
 }
 
-bool Profiler::find_kernel_do_execveat_common(addr_t inst_va) {
-  return find_kernel_function(inst_va, k_do_execveat_common);
-}
-
-bool Profiler::find_kernel_set_mm_asid(addr_t inst_va) {
-  return find_kernel_function(inst_va, k_set_mm_asid);
-}
-
-bool Profiler::find_kernel_function_end(addr_t inst_va, std::string fname) {
+addr_t Profiler::kernel_function_end_addr(std::string fname) {
   ObjdumpParser* obj = objdumps.find(KERNEL)->second;
-  return (obj->get_func_end_va(fname) == inst_va);
+  return obj->get_func_end_va(fname);
 }
 
 // Kernel takes up the upper virtual address
 bool Profiler::user_space_addr(addr_t va) {
   addr_t va_hi = va >> 32;
   return ((va_hi & 0xffffffff) == 0);
-}
-
-void Profiler::step_until_kernel_function(std::string fname, trace_t& trace) {
-  do {
-    run_for(1);
-    auto ctrace = this->run_trace();
-    trace.insert(trace.end(), ctrace.begin(), ctrace.end());
-
-    addr_t pc = get_va_pc(0);
-    if (find_kernel_function(pc, fname))
-      break;
-  } while (true);
 }
 
 void Profiler::step_until_insn(std::string type, trace_t& trace) {
@@ -167,16 +170,6 @@ void Profiler::step_until_insn(std::string type, trace_t& trace) {
     if (disasm.is_type(type, insn))
       break;
   } while (true);
-}
-
-state_t* Profiler::get_state(int hartid) {
-  processor_t* p = get_core(hartid);
-  return p->get_state();
-}
-
-addr_t Profiler::get_va_pc(int hartid) {
-  state_t* state = get_state(hartid);
-  return state->pc;
 }
 
 bool Profiler::called_by_do_execveat_common() {
@@ -196,50 +189,95 @@ int Profiler::run() {
   size_t INSN_PER_CKPT = 100000;
   size_t INSNS_PER_RTC_TICK = 100;
 
+  double run_us = 0.0;
+
+  uint64_t ckpt_cnt = 0;
+  double   ckpt_us  = 0.0;
+
+  uint64_t spike_cnt = 0;
+  double   spike_us  = 0.0;
+
+  uint64_t trace_check_cnt = 0;
+  double   trace_check_us  = 0.0;
+
+  uint64_t rewind_cnt = 0;
+  double   rewind_us  = 0.0;
+
+  uint64_t ld_ckpt_cnt = 0;
+  double   ld_ckpt_us  = 0.0;
+
+  uint64_t single_step_cnt = 0;
+
+  addr_t do_execveat_common_start = kernel_function_start_addr(k_do_execveat_common);
+  addr_t do_execveat_common_end   = kernel_function_end_addr(k_do_execveat_common);
+
+  addr_t set_mm_asid_start = kernel_function_start_addr(k_set_mm_asid);
+  addr_t set_mm_asid_end   = kernel_function_end_addr(k_set_mm_asid);
+
+  auto run_s = GET_TIME();
   while (target_running()) {
     std::string protobuf;
+
+    auto ckpt_s = GET_TIME();
     take_ckpt(protobuf);
+    auto ckpt_e = GET_TIME();
+    MEASURE_AVG_TIME(ckpt_s, ckpt_e, ckpt_us, ckpt_cnt);
+
+    auto spike_s = GET_TIME();
     run_for(INSN_PER_CKPT);
+    auto spike_e = GET_TIME();
+    MEASURE_AVG_TIME(spike_s, spike_e, spike_us, spike_cnt);
 
     bool rewind = false;
     size_t fwd_steps = 0;
     trace_t pctrace = this->run_trace();
     int popcnt = 0;
+
+    auto trace_check_s = GET_TIME();
     for (size_t i = 0, cnt = pctrace.size(); i < cnt; i++) {
-      if (find_kernel_do_execveat_common(pctrace[i].pc) ||
-          find_kernel_set_mm_asid(pctrace[i].pc)) {
+      reg_t pc = pctrace[i].pc;
+      if (unlikely(
+          (pc == do_execveat_common_start) ||
+          (pc == set_mm_asid_start))) {
         rewind = true;
         fwd_steps = i;
         pctrace.clear();
         break;
-      } else {
-        if (find_kernel_function_end(pctrace[i].pc, k_do_execveat_common) ||
-            find_kernel_function_end(pctrace[i].pc, k_set_mm_asid)) {
-          popcnt++;
-        }
+      } else if (unlikely(
+          (pc == do_execveat_common_end) ||
+          (pc == set_mm_asid_end))) {
+        popcnt++;
       }
     }
+    auto trace_check_e = GET_TIME();
+    MEASURE_AVG_TIME(trace_check_s, trace_check_e, trace_check_us, trace_check_cnt);
 
     while (popcnt--) {
       fstack.pop_back();
     }
 
     if (rewind) {
+      auto rewind_s = GET_TIME();
+
       trace_t rewind_trace;
+      auto ld_ckpt_s = GET_TIME();
       load_ckpt(protobuf, false);
+      auto ld_ckpt_e = GET_TIME();
+      MEASURE_AVG_TIME(ld_ckpt_s, ld_ckpt_e, ld_ckpt_us, ld_ckpt_cnt);
 
       size_t fastfwd_steps = (fwd_steps < INTERLEAVE) ?
-                              fwd_steps :
+                              0 :
                               fwd_steps - INTERLEAVE;
       run_for(fastfwd_steps);
       rewind_trace = this->run_trace();
       pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
+      if (unlikely(fwd_steps < rewind_trace.size())) {
+        printf("fwd_steps: %" PRIu64 " < fastfwd_steps: % " PRIu64 "\n",
+            fwd_steps, rewind_trace.size());
+        exit(1);
+      }
 
       do {
-        run_for(1);
-        rewind_trace = this->run_trace();
-        pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
-
         processor_t* proc = get_core(0);
         state_t* state = proc->get_state();
         addr_t va = state->pc;
@@ -250,15 +288,21 @@ int Profiler::run() {
           auto it = asid_to_bin.find(asid);
           if (it != asid_to_bin.end()) {
           }
-        } else if (find_kernel_do_execveat_common(va)) {
+        } else if (unlikely(va == do_execveat_common_start)) {
           // map current asid with binary name
           std::string bin_path = find_launched_binary(proc);
           fstack.push_back(CallStackInfo(k_do_execveat_common, bin_path));
           run_for(1);
           rewind_trace = this->run_trace();
           pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
+
+          run_for(1);
+          rewind_trace = this->run_trace();
+          pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
+          INCREMENT_CNTR(single_step_cnt);
+
           break;
-        } else if (find_kernel_set_mm_asid(va)) {
+        } else if (unlikely(va == set_mm_asid_start)) {
           if (called_by_do_execveat_common()) {
             step_until_insn(CSRW, pctrace);
             asid = proc->get_asid();
@@ -268,14 +312,31 @@ int Profiler::run() {
           }
 
           fstack.push_back(CallStackInfo(k_set_mm_asid, ""));
+
+          run_for(1);
+          rewind_trace = this->run_trace();
+          pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
+          INCREMENT_CNTR(single_step_cnt);
+
           break;
         } else {
           // do nothing
         }
+        run_for(1);
+        rewind_trace = this->run_trace();
+        pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
+        INCREMENT_CNTR(single_step_cnt);
+
       } while (true);
+
+      auto rewind_e = GET_TIME();
+      MEASURE_AVG_TIME(rewind_s, rewind_e, rewind_us, rewind_cnt);
     }
     submit_trace_to_threadpool(pctrace);
   }
+  auto run_e = GET_TIME();
+  MEASURE_TIME(run_s, run_e, run_us);
+
 
   loggers.stop();
   auto rc = stop_sim();
@@ -285,6 +346,14 @@ int Profiler::run() {
     os << x.first << " " << x.second << "\n";
   }
   os.close();
+
+  PRINT_TIME_STAT("RUN TOOK", run_us);
+  PRINT_AVG_TIME_STAT("CKPT", ckpt_us, ckpt_cnt);
+  PRINT_AVG_TIME_STAT("SPIKE", spike_us, spike_cnt);
+  PRINT_AVG_TIME_STAT("TRACE_CHECK", trace_check_us, trace_check_cnt);
+  PRINT_AVG_TIME_STAT("REWIND", rewind_us, rewind_cnt);
+  PRINT_AVG_TIME_STAT("LDCKPT", ld_ckpt_us, ld_ckpt_cnt);
+  PRINT_CNTR_STAT("SINGLE_STEP", single_step_cnt);
 
   return rc;
 }

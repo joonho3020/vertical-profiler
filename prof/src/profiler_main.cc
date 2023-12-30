@@ -579,7 +579,10 @@ int main(int argc, char** argv)
   p.set_debug(debug);
 
   auto return_code = p.run();
-  p.process_callstack();
+
+  if (callstack != NULL) {
+    p.process_callstack();
+  }
 
   return return_code;
 }
