@@ -112,4 +112,25 @@ addr_t ObjdumpParser::get_func_end_va(std::string func) {
   return it->second;
 }
 
+
+std::vector<addr_t> ObjdumpParser::get_func_exits(std::string func) {
+  std::vector<std::string>& body = get_func_body(func);
+  std::vector<std::string> words;
+
+  std::vector<addr_t> exit_points;
+  char* end = nullptr;
+
+  for (auto& l : body) {
+    split(words, l);
+    if ((int)words.size() < 3)
+      continue;
+
+    if (words[2].compare("ret") == 0)
+      exit_points.push_back(std::strtoul(words[0].c_str(), &end, 16));
+
+    words.clear();
+  }
+  return exit_points;
+}
+
 } // namespace Profiler
