@@ -139,31 +139,24 @@ addr_t ObjdumpParser::get_func_end_va(std::string func) {
   return it->second;
 }
 
-std::vector<addr_t> ObjdumpParser::get_func_callsites(std::string caller, std::string callee) {
-  auto it = func_bodies.find(caller);
-  if (it == func_bodies.end()) {
-    assert((void("Could not find caller function in the objdump"), false));
-  }
-
-  std::vector<addr_t> sites;
+std::vector<addr_t> ObjdumpParser::get_func_exits(std::string func) {
+  std::vector<std::string>& body = get_func_body(func);
   std::vector<std::string> words;
-  for (auto l : body) {
+
+  std::vector<addr_t> exit_points;
+  char* end = nullptr;
+
+  for (auto& l : body) {
     split(words, l);
-    if (words.size() == 0)
+    if ((int)words.size() < 3)
       continue;
 
-    std::string last = words.back();
-    size_t len = last.size();
-    if (len <= 2)
-      continue;
+    if (words[2].compare("ret") == 0)
+      exit_points.push_back(std::strtoul(words[0].c_str(), &end, 16));
 
-    if (caller.compare(last[1, len-2]) == 0) {
-      std::string addrstr = words[0];
-      sites.push_back(std::strtoul(words[0].c_str(), &end, 16));
-    }
     words.clear();
   }
-  return sites;
+  return exit_points;
 }
 
 } // namespace Profiler

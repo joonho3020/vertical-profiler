@@ -28,7 +28,7 @@ public:
   std::vector<std::string>& get_func_body(std::string func);
   addr_t get_func_start_va(std::string func);
   addr_t get_func_end_va(std::string func);
-  std::vector<addr_t> get_func_callsites(std::string caller, std::string callee);
+  std::vector<addr_t> get_func_exits(std::string func);
 
 private:
   std::string objdump_path;

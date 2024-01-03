@@ -58,9 +58,9 @@ public:
   void step_until_insn(std::string type, trace_t& trace);
 
 private:
-  std::map<addr_t, Function*> prof_sa_to_func;
-  std::vector<addr_t> prof_func_start_addrs;
-  std::vector<addr_t> prof_func_end_addrs;
+  std::map<addr_t, Function*> prof_pc_to_func;
+  std::vector<addr_t>         prof_pc_func_start;
+  std::vector<addr_t>         prof_pc_func_exit;
 
   inline bool found_registered_func_start_addr(addr_t va);
   inline bool found_registered_func_end_addr(addr_t va);
