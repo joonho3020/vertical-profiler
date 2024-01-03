@@ -2,6 +2,7 @@
 #define __CALLSTACK_INFO_H__
 
 #include <string>
+#include <optional>
 #include <riscv/processor.h>
 
 #include "types.h"
@@ -57,6 +58,15 @@ public:
 
 private:
   bool called_by_do_execveat_common(std::vector<CallStackInfo>& cs);
+};
+
+class Function_k_pick_next_task_fair : public Function {
+public:
+  Function_k_pick_next_task_fair(std::string name, addr_t va_s, addr_t va_e);
+  virtual CallStackInfo update_profiler(Profiler *p, trace_t& t) override;
+
+private:
+  std::optional<pid_t> get_pid_next_task(Profiler *p, processor_t* proc);
 };
 
 } // namespace Profiler

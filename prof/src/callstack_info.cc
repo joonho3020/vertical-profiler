@@ -1,4 +1,5 @@
 #include <string>
+#include <optional>
 
 #include <riscv/processor.h>
 #include <riscv/mmu.h>
@@ -112,5 +113,33 @@ bool Function_k_set_mm_asid::called_by_do_execveat_common(std::vector<CallStackI
   }
 }
 
+Function_k_pick_next_task_fair::Function_k_pick_next_task_fair(std::string name, addr_t va_s, addr_t va_e)
+  : Function(name, va_s, va_e)
+{
+}
+
+CallStackInfo Function_k_pick_next_task_fair::update_profiler(Profiler *p, trace_t& t) {
+  processor_t* proc = p->get_core(0);
+  std::optional<pid_t> pid = get_pid_next_task(p, proc);
+  return CallStackInfo(k_pick_next_task_fair, "");
+}
+
+std::optional<pid_t> Function_k_pick_next_task_fair::get_pid_next_task(Profiler *p, processor_t* proc) {
+  ObjdumpParser *obj = p->get_objdump_parser(KERNEL);
+  std::string ret_reg = obj->func_ret_reg(k_pick_next_task_fair);
+  unsigned int reg_idx = p->get_riscv_abi_ireg(ret_reg);
+
+  mmu_t* mmu = proc->get_mmu();
+  state_t* state = proc->get_state();
+  addr_t next_task_ptr = state->XPR[reg_idx];
+  if (next_task_ptr == 0) {
+    pprintf("CFS doesn't have a task to schedule\n");
+    return -1;
+  } else {
+    addr_t next_task_pid_addr = next_task_ptr + offsetof_task_struct_pid;
+    uint32_t pid = mmu->load<uint32_t>(next_task_pid_addr);
+    pprintf("CFS next task pid: %" PRIu32 "\n", pid);
+  }
+}
 
 } // namespace Profiler

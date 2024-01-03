@@ -4,6 +4,7 @@
 #include <cassert>
 #include <iostream>
 #include <stdlib.h>
+#include "callstack_info.h"
 #include "objdump_parser.h"
 #include "string_parser.h"
 
@@ -95,6 +96,32 @@ std::string ObjdumpParser::func_args_reg(std::string func, int arg_idx) {
   return r;
 }
 
+std::string ObjdumpParser::func_ret_reg(std::string func) {
+  std::vector<std::string> body = get_func_body(func);
+  std::vector<std::string> words;
+
+  std::string r = "a0";
+
+  for (auto it = body.rbegin(); it != body.rend(); ++it) {
+    split(words, *it);
+
+    // found first instance of a0 from the back
+    if ((int)words.size() >= 4 && words[3].find(r) != std::string::npos) {
+      if (words[2].compare("mv") == 0) {
+        std::vector<std::string> ops;
+        split(ops, words[3], ',');
+        assert((int)ops.size() == 2);
+        if (ops[0].compare(r) == 0)
+          return ops[0];
+      }
+    }
+    words.clear();
+  }
+
+  // this function doesn't have a return value
+  // or sth special about the ABI
+  assert(false);
+}
 
 addr_t ObjdumpParser::get_func_start_va(std::string func) {
   auto it = func_start_va.find(func);
@@ -110,6 +137,33 @@ addr_t ObjdumpParser::get_func_end_va(std::string func) {
     assert((void("Could not find function ending name in the objdump"), false));
   }
   return it->second;
+}
+
+std::vector<addr_t> ObjdumpParser::get_func_callsites(std::string caller, std::string callee) {
+  auto it = func_bodies.find(caller);
+  if (it == func_bodies.end()) {
+    assert((void("Could not find caller function in the objdump"), false));
+  }
+
+  std::vector<addr_t> sites;
+  std::vector<std::string> words;
+  for (auto l : body) {
+    split(words, l);
+    if (words.size() == 0)
+      continue;
+
+    std::string last = words.back();
+    size_t len = last.size();
+    if (len <= 2)
+      continue;
+
+    if (caller.compare(last[1, len-2]) == 0) {
+      std::string addrstr = words[0];
+      sites.push_back(std::strtoul(words[0].c_str(), &end, 16));
+    }
+    words.clear();
+  }
+  return sites;
 }
 
 } // namespace Profiler

@@ -30,6 +30,11 @@
 //  - TODO : return CallStackInfo* in Function
 //
 // 4. API for registering things to monitor rather than manually hand coding them
+// 5. Check robustness of func_args_reg & func_ret_reg of ObjdumpParser
+// 6. Auto generate the consts section regarding function arguments & offsetof
+// 7. Consider conner cases regarding when to pop a function from the callstack 
+//   - a function may not exit at the end address of a function block. (Or does it??)
+//   - Read the stack unwinder code...?
 
 /* #define PROFILER_ASSERT */
 
@@ -219,12 +224,6 @@ int Profiler::run() {
   double   ld_ckpt_us  = 0.0;
 
   uint64_t single_step_cnt = 0;
-
-  addr_t do_execveat_common_start = kernel_function_start_addr(k_do_execveat_common);
-  addr_t do_execveat_common_end   = kernel_function_end_addr(k_do_execveat_common);
-
-  addr_t set_mm_asid_start = kernel_function_start_addr(k_set_mm_asid);
-  addr_t set_mm_asid_end   = kernel_function_end_addr(k_set_mm_asid);
 
   auto run_s = GET_TIME();
   while (target_running()) {
