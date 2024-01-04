@@ -4,7 +4,6 @@
 #include <cassert>
 #include <iostream>
 #include <stdlib.h>
-#include "callstack_info.h"
 #include "objdump_parser.h"
 #include "string_parser.h"
 
@@ -139,7 +138,7 @@ addr_t ObjdumpParser::get_func_end_va(std::string func) {
   return it->second;
 }
 
-std::vector<addr_t> ObjdumpParser::get_func_exits(std::string func) {
+std::vector<addr_t> ObjdumpParser::get_func_exits_va(std::string func) {
   std::vector<std::string>& body = get_func_body(func);
   std::vector<std::string> words;
 

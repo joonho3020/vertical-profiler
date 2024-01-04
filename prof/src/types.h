@@ -38,6 +38,7 @@ typedef int pid_t;
 #define k_set_mm_asid "set_mm_asid"
 
 #define k_pick_next_task_fair "pick_next_task_fair"
+#define k_pick_next_task "pick_next_task"
 #define offsetof_task_struct_pid 1072
 
 #define KERNEL "k"

@@ -24,18 +24,17 @@ std::string CallStackInfo::bin() {
 }
 
 
-Function::Function(std::string name, addr_t va_s, addr_t va_e) 
-  : n(name), va_s(va_s), va_e(va_e)
+Function::Function(std::string name) 
+  : n(name)
 {
 }
 
-Function_k_do_execveat_common::Function_k_do_execveat_common(
-    std::string name, addr_t va_s, addr_t va_e) 
-  : Function(name, va_s, va_e)
+Function_k_do_execveat_common::Function_k_do_execveat_common(std::string name) 
+  : Function(name)
 {
 }
 
-CallStackInfo Function_k_do_execveat_common::update_profiler(Profiler *p, trace_t& t) {
+std::optional<CallStackInfo> Function_k_do_execveat_common::update_profiler(Profiler *p, trace_t& t) {
 /* pprintf("Called kernel_do_execveat_common_start update_profiler\n"); */
 
   // TODO : multicore support
@@ -80,12 +79,12 @@ std::string Function_k_do_execveat_common::find_exec_syscall_filepath(
 }
 
 
-Function_k_set_mm_asid::Function_k_set_mm_asid(std::string name, addr_t va_s, addr_t va_e)
-  : Function(name, va_s, va_e)
+Function_k_set_mm_asid::Function_k_set_mm_asid(std::string name)
+  : Function(name)
 {
 }
 
-CallStackInfo Function_k_set_mm_asid::update_profiler(Profiler *p, trace_t& t) {
+std::optional<CallStackInfo> Function_k_set_mm_asid::update_profiler(Profiler *p, trace_t& t) {
 /* pprintf("Called kernel_set_mm_asid update_profiler\n"); */
 
   std::vector<CallStackInfo>& cs = p->get_callstack();
@@ -113,15 +112,15 @@ bool Function_k_set_mm_asid::called_by_do_execveat_common(std::vector<CallStackI
   }
 }
 
-Function_k_pick_next_task_fair::Function_k_pick_next_task_fair(std::string name, addr_t va_s, addr_t va_e)
-  : Function(name, va_s, va_e)
+Function_k_pick_next_task_fair::Function_k_pick_next_task_fair(std::string name)
+  : Function(name)
 {
 }
 
-CallStackInfo Function_k_pick_next_task_fair::update_profiler(Profiler *p, trace_t& t) {
+std::optional<CallStackInfo> Function_k_pick_next_task_fair::update_profiler(Profiler *p, trace_t& t) {
   processor_t* proc = p->get_core(0);
   std::optional<pid_t> pid = get_pid_next_task(p, proc);
-  return CallStackInfo(k_pick_next_task_fair, "");
+  return {};
 }
 
 std::optional<pid_t> Function_k_pick_next_task_fair::get_pid_next_task(Profiler *p, processor_t* proc) {
@@ -139,7 +138,15 @@ std::optional<pid_t> Function_k_pick_next_task_fair::get_pid_next_task(Profiler 
     addr_t next_task_pid_addr = next_task_ptr + offsetof_task_struct_pid;
     uint32_t pid = mmu->load<uint32_t>(next_task_pid_addr);
     pprintf("CFS next task pid: %" PRIu32 "\n", pid);
+    return std::optional<pid_t>(pid);
   }
 }
+
+/* Function_k_kernel_clone::Function_k_kernel_clone(std::string name) */
+/* : Function(name) */
+/* { */
+/* } */
+
+/* std::optional<CallStackInfo> update */
 
 } // namespace Profiler

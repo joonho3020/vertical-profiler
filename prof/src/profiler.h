@@ -47,7 +47,7 @@ public:
   void process_callstack();
 
   // TODO : error checking if the function exists
-  void add_kernel_function(Function* f);
+  void add_kernel_func_to_profile(Function* f, bool rewind_at_exit);
 
   unsigned int   get_riscv_abi_ireg(std::string rname);
   ObjdumpParser* get_objdump_parser(std::string oname);
@@ -59,8 +59,8 @@ public:
 
 private:
   std::map<addr_t, Function*> prof_pc_to_func;
-  std::vector<addr_t>         prof_pc_func_start;
-  std::vector<addr_t>         prof_pc_func_exit;
+  std::vector<addr_t>         func_pc_prof_start;
+  std::vector<addr_t>         func_pc_prof_exit;
 
   inline bool found_registered_func_start_addr(addr_t va);
   inline bool found_registered_func_end_addr(addr_t va);
@@ -78,6 +78,10 @@ private:
 
 
   std::map<reg_t, std::string> asid_to_bin;
+
+  // fork : add a new pid to bin mapping. the binary should be from the parent pid
+  // exec : update the existing pid to bin mapping
+  std::map<pid_t, std::string> pid_to_bin;
 
 private:
   // Stuff for output logging

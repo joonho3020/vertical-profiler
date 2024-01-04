@@ -29,12 +29,8 @@
 // function. 
 //  - TODO : return CallStackInfo* in Function
 //
-// 4. API for registering things to monitor rather than manually hand coding them
 // 5. Check robustness of func_args_reg & func_ret_reg of ObjdumpParser
 // 6. Auto generate the consts section regarding function arguments & offsetof
-// 7. Consider conner cases regarding when to pop a function from the callstack 
-//   - a function may not exit at the end address of a function block. (Or does it??)
-//   - Read the stack unwinder code...?
 
 /* #define PROFILER_ASSERT */
 
@@ -100,19 +96,14 @@ Profiler::Profiler(
     riscv_abi.insert({iregs[i], i});
   }
 
-  Function* f1 =
-     new  Function_k_do_execveat_common(
-         k_do_execveat_common,
-         kernel_function_start_addr(k_do_execveat_common),
-         kernel_function_end_addr  (k_do_execveat_common));
-  this->add_kernel_function(f1);
+  Function* f1 = new  Function_k_do_execveat_common(k_do_execveat_common);
+  this->add_kernel_func_to_profile(f1, false);
 
-  Function* f2 =
-     new  Function_k_set_mm_asid(
-         k_set_mm_asid,
-         kernel_function_start_addr(k_set_mm_asid),
-         kernel_function_end_addr  (k_set_mm_asid));
-  this->add_kernel_function(f2);
+  Function* f2 = new  Function_k_set_mm_asid(k_set_mm_asid);
+  this->add_kernel_func_to_profile(f2, false);
+
+/* Function* f3 = new Function_k_pick_next_task_fair(k_pick_next_task_fair); */
+/* this->add_kernel_func_to_profile(f3, true); */
 }
 
 Profiler::~Profiler() {
@@ -122,10 +113,33 @@ Profiler::~Profiler() {
   objdumps.clear();
 }
 
-void Profiler::add_kernel_function(Function* f) {
-  prof_sa_to_func[f->va_start()] = f;
-  prof_func_start_addrs.push_back(f->va_start());
-  prof_func_end_addrs.push_back(f->va_end());
+void Profiler::add_kernel_func_to_profile(Function* f, bool rewind_at_exit) {
+  std::string fname = f->name();
+
+  auto it = objdumps.find(KERNEL);
+  if (it == objdumps.end()) {
+    pprintf("Could not find kernel objdump\n");
+    exit(1);
+  }
+
+  ObjdumpParser* kdump = it->second;
+  addr_t              sva  = kdump->get_func_start_va(fname);
+  std::vector<addr_t> evas = kdump->get_func_exits_va(fname);
+
+  if (rewind_at_exit) {
+    for (auto e : evas) {
+      // Don't need to pop the stack because we are 
+      // intercepting the function at its exit.
+      func_pc_prof_start.push_back(e);
+      prof_pc_to_func[e] = f;
+    }
+  } else {
+    for (auto e : evas) {
+      func_pc_prof_exit .push_back(e);
+    }
+    prof_pc_to_func[sva] = f;
+    func_pc_prof_start.push_back(sva);
+  }
 }
 
 unsigned int Profiler::get_riscv_abi_ireg(std::string rname) {
@@ -168,14 +182,14 @@ addr_t Profiler::kernel_function_end_addr(std::string fname) {
 }
 
 bool Profiler::found_registered_func_start_addr(addr_t va) {
-  for (auto &x : prof_func_start_addrs) {
+  for (auto &x : func_pc_prof_start) {
     if (unlikely(x == va)) return true;
   }
   return false;
 }
 
 bool Profiler::found_registered_func_end_addr(addr_t va) {
-  for (auto &x : prof_func_end_addrs) {
+  for (auto &x : func_pc_prof_exit) {
     if (unlikely(x == va)) return true;
   }
   return false;
@@ -294,11 +308,14 @@ int Profiler::run() {
         addr_t va = state->pc;
         addr_t asid = proc->get_asid();
 
-        for (auto& sa : prof_func_start_addrs) {
+        for (auto& sa : func_pc_prof_start) {
           if (unlikely(sa == va)) {
-            auto f = prof_sa_to_func[va];
-            CallStackInfo entry = f->update_profiler(this, pctrace);
-            fstack.push_back(entry);
+            auto f = prof_pc_to_func[va];
+            std::optional<CallStackInfo> entry = f->update_profiler(this, pctrace);
+
+            if (entry.has_value())
+              fstack.push_back(entry.value());
+
             found_function = true;
             break;
           }
