@@ -85,25 +85,17 @@ Profiler::Profiler(
 
   loggers.start();
 
-  std::string iregs[XPR_CNT] = {
-    "x0", "ra", "sp", "gp",  "tp",  "t0", "t1", "t2",
-    "s0", "s1", "a0",  "a1",  "a2", "a3", "a4", "a5",
-    "a6", "a7", "s2",  "s3",  "s4", "s5", "s6", "s7",
-    "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
-  };
-
-  for (int i = 0; i < XPR_CNT; i++) {
-    riscv_abi.insert({iregs[i], i});
-  }
-
-  Function* f1 = new  Function_k_do_execveat_common(k_do_execveat_common);
+  Function* f1 = new KF_do_execveat_common(k_do_execveat_common);
   this->add_kernel_func_to_profile(f1, false);
 
-  Function* f2 = new  Function_k_set_mm_asid(k_set_mm_asid);
+  Function* f2 = new KF_set_mm_asid(k_set_mm_asid);
   this->add_kernel_func_to_profile(f2, false);
 
-/* Function* f3 = new Function_k_pick_next_task_fair(k_pick_next_task_fair); */
-/* this->add_kernel_func_to_profile(f3, true); */
+  Function* f3 = new KF_pick_next_task_fair(k_pick_next_task_fair);
+  this->add_kernel_func_to_profile(f3, true);
+
+  Function* f4 = new KF_kernel_clone(k_kernel_clone);
+  this->add_kernel_func_to_profile(f4, true);
 }
 
 Profiler::~Profiler() {
@@ -142,16 +134,6 @@ void Profiler::add_kernel_func_to_profile(Function* f, bool rewind_at_exit) {
   }
 }
 
-unsigned int Profiler::get_riscv_abi_ireg(std::string rname) {
-#ifdef PROFILER_ASSERT
-  if (riscv_abi.find(rname) == riscv_abi.end()) {
-    fprintf(stderr, "ABI mismatch: %s\n", rname.c_str());
-    exit(1);
-  }
-#endif
-  return riscv_abi[rname];
-}
-
 ObjdumpParser* Profiler::get_objdump_parser(std::string oname) {
 #ifdef PROFILER_ASSERT
   if (objdumps.find(oname) == objdumps.end()) {
@@ -169,6 +151,10 @@ std::vector<CallStackInfo>& Profiler::get_callstack() {
 
 std::map<reg_t, std::string>& Profiler::get_asid2bin_map() {
   return asid_to_bin;
+}
+
+std::map<pid_t, std::string>& Profiler::get_pid2bin_map() {
+  return pid_to_bin;
 }
 
 addr_t Profiler::kernel_function_start_addr(std::string fname) {
@@ -311,8 +297,7 @@ int Profiler::run() {
         for (auto& sa : func_pc_prof_start) {
           if (unlikely(sa == va)) {
             auto f = prof_pc_to_func[va];
-            std::optional<CallStackInfo> entry = f->update_profiler(this, pctrace);
-
+            OptCallStackInfo entry = f->update_profiler(this, pctrace);
             if (entry.has_value())
               fstack.push_back(entry.value());
 

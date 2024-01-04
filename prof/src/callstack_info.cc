@@ -1,5 +1,7 @@
 #include <string>
 #include <optional>
+#include <map>
+#include <vector>
 
 #include <riscv/processor.h>
 #include <riscv/mmu.h>
@@ -24,17 +26,38 @@ std::string CallStackInfo::bin() {
 }
 
 
-Function::Function(std::string name) 
+Function::Function(std::string name)
   : n(name)
 {
 }
 
-Function_k_do_execveat_common::Function_k_do_execveat_common(std::string name) 
+
+KernelFunction::KernelFunction(std::string name)
   : Function(name)
 {
 }
 
-std::optional<CallStackInfo> Function_k_do_execveat_common::update_profiler(Profiler *p, trace_t& t) {
+addr_t KernelFunction::get_current_ptr(processor_t* proc) {
+  state_t* s = proc->get_state();
+  unsigned int tidx = riscv_abi_ireg["tp"];
+  return s->XPR[tidx];
+}
+
+pid_t KernelFunction::get_current_pid(processor_t* proc) {
+  mmu_t* mmu = proc->get_mmu();
+
+  addr_t curr_ptr = get_current_ptr(proc);
+  addr_t pid_addr = curr_ptr + offsetof_task_struct_pid;
+  pid_t  pid = mmu->load<pid_t>(pid_addr);
+  return pid;
+}
+
+KF_do_execveat_common::KF_do_execveat_common(std::string name) 
+  : KernelFunction(name)
+{
+}
+
+OptCallStackInfo KF_do_execveat_common::update_profiler(Profiler *p, trace_t& t) {
 /* pprintf("Called kernel_do_execveat_common_start update_profiler\n"); */
 
   // TODO : multicore support
@@ -45,14 +68,14 @@ std::optional<CallStackInfo> Function_k_do_execveat_common::update_profiler(Prof
   return CallStackInfo(k_do_execveat_common, filepath);
 }
 
-std::string Function_k_do_execveat_common::find_exec_syscall_filepath(
+std::string KF_do_execveat_common::find_exec_syscall_filepath(
     Profiler* p,
     processor_t* proc)
 {
   ObjdumpParser *obj = p->get_objdump_parser(KERNEL);
   std::string farg_abi_reg = obj->func_args_reg(k_do_execveat_common,
                                                 k_do_execveat_common_filename_arg);
-  unsigned int reg_idx = p->get_riscv_abi_ireg(farg_abi_reg);
+  unsigned int reg_idx = riscv_abi_ireg[farg_abi_reg];
 
   mmu_t*   mmu   = proc->get_mmu();
   state_t* state = proc->get_state();
@@ -73,18 +96,27 @@ std::string Function_k_do_execveat_common::find_exec_syscall_filepath(
 
   addr_t va = state->pc;
   addr_t asid = proc->get_asid();
-  pprintf("find_launced_binary done %s va: 0x% " PRIx64 " asid: %" PRIu64 "\n",
+  pprintf("find_launched_binary done %s va: 0x% " PRIx64 " asid: %" PRIu64 "\n",
           name.c_str(), va, asid);
+
+  // update the pid mapping
+  std::map<pid_t, std::string>& pid2bin = p->get_pid2bin_map();
+  pid_t pid = get_current_pid(proc);
+  auto it = pid2bin.find(pid);
+  if (it != pid2bin.end()) {
+    pprintf("Updating pid2bin[%u]: %s -> %s\n", pid, it->second.c_str(), name.c_str());
+  }
+  pid2bin[pid] = name;
+
   return name;
 }
 
-
-Function_k_set_mm_asid::Function_k_set_mm_asid(std::string name)
-  : Function(name)
+KF_set_mm_asid::KF_set_mm_asid(std::string name)
+  : KernelFunction(name)
 {
 }
 
-std::optional<CallStackInfo> Function_k_set_mm_asid::update_profiler(Profiler *p, trace_t& t) {
+OptCallStackInfo KF_set_mm_asid::update_profiler(Profiler *p, trace_t& t) {
 /* pprintf("Called kernel_set_mm_asid update_profiler\n"); */
 
   std::vector<CallStackInfo>& cs = p->get_callstack();
@@ -98,12 +130,15 @@ std::optional<CallStackInfo> Function_k_set_mm_asid::update_profiler(Profiler *p
     reg_t asid = proc->get_asid();
 
     p->get_asid2bin_map().insert({asid, bin});
-    pprintf("Found mapping ASID: %" PRIu64 " bin: %s\n", asid, bin.c_str());
+    pid_t pid = get_current_pid(proc);
+
+    pprintf("Found mapping ASID: %" PRIu64 " PID: %u bin: %s\n",
+        asid, pid, bin.c_str());
   }
   return CallStackInfo(k_set_mm_asid, "");
 }
 
-bool Function_k_set_mm_asid::called_by_do_execveat_common(std::vector<CallStackInfo>& cs) {
+bool KF_set_mm_asid::called_by_do_execveat_common(std::vector<CallStackInfo>& cs) {
   if (cs.size() == 0) {
     return false;
   } else {
@@ -112,21 +147,21 @@ bool Function_k_set_mm_asid::called_by_do_execveat_common(std::vector<CallStackI
   }
 }
 
-Function_k_pick_next_task_fair::Function_k_pick_next_task_fair(std::string name)
-  : Function(name)
+KF_pick_next_task_fair::KF_pick_next_task_fair(std::string name)
+  : KernelFunction(name)
 {
 }
 
-std::optional<CallStackInfo> Function_k_pick_next_task_fair::update_profiler(Profiler *p, trace_t& t) {
+OptCallStackInfo KF_pick_next_task_fair::update_profiler(Profiler *p, trace_t& t) {
   processor_t* proc = p->get_core(0);
   std::optional<pid_t> pid = get_pid_next_task(p, proc);
   return {};
 }
 
-std::optional<pid_t> Function_k_pick_next_task_fair::get_pid_next_task(Profiler *p, processor_t* proc) {
+std::optional<pid_t> KF_pick_next_task_fair::get_pid_next_task(Profiler *p, processor_t* proc) {
   ObjdumpParser *obj = p->get_objdump_parser(KERNEL);
   std::string ret_reg = obj->func_ret_reg(k_pick_next_task_fair);
-  unsigned int reg_idx = p->get_riscv_abi_ireg(ret_reg);
+  unsigned int reg_idx = riscv_abi_ireg[ret_reg];
 
   mmu_t* mmu = proc->get_mmu();
   state_t* state = proc->get_state();
@@ -136,17 +171,50 @@ std::optional<pid_t> Function_k_pick_next_task_fair::get_pid_next_task(Profiler 
     return -1;
   } else {
     addr_t next_task_pid_addr = next_task_ptr + offsetof_task_struct_pid;
-    uint32_t pid = mmu->load<uint32_t>(next_task_pid_addr);
-    pprintf("CFS next task pid: %" PRIu32 "\n", pid);
+    pid_t pid = mmu->load<pid_t>(next_task_pid_addr);
+
+
+    auto pid2bin = p->get_pid2bin_map();
+    pprintf("CFS next task pid: %" PRIu32 " %s\n", pid, pid2bin[pid].c_str());
     return std::optional<pid_t>(pid);
   }
 }
 
-/* Function_k_kernel_clone::Function_k_kernel_clone(std::string name) */
-/* : Function(name) */
-/* { */
-/* } */
+KF_kernel_clone::KF_kernel_clone(std::string name)
+  : KernelFunction(name)
+{
+}
 
-/* std::optional<CallStackInfo> update */
+OptCallStackInfo KF_kernel_clone::update_profiler(Profiler *p, trace_t& t) {
+  processor_t* proc = p->get_core(0);
+  pid_t newpid = get_forked_task_pid(p, proc);
+  pid_t parpid = get_current_pid(proc);
+
+
+  std::map<pid_t, std::string>& pid2bin = p->get_pid2bin_map();
+  auto it = pid2bin.find(parpid);
+  if (it != pid2bin.end()) {
+    std::string bin = it->second;
+    pid2bin[newpid] = bin;
+  } else {
+    pid2bin[newpid] = "X";
+  }
+
+  pprintf("Forked p: %u c: %u bin: %s\n",
+      parpid, newpid, pid2bin[newpid].c_str());
+
+  return {};
+}
+
+pid_t KF_kernel_clone::get_forked_task_pid(Profiler* p, processor_t* proc) {
+  ObjdumpParser *obj = p->get_objdump_parser(KERNEL);
+  std::string ret_reg = obj->func_ret_reg(k_kernel_clone);
+  unsigned int reg_idx = riscv_abi_ireg[ret_reg];
+
+  mmu_t* mmu = proc->get_mmu();
+  state_t* state = proc->get_state();
+  pid_t next_pid = state->XPR[reg_idx];
+  return next_pid;
+}
 
 } // namespace Profiler

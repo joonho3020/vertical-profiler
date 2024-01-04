@@ -24,23 +24,36 @@ private:
   std::string binary;
 };
 
+typedef std::optional<CallStackInfo> OptCallStackInfo;
+
 
 class Function {
 public:
   Function(std::string name);
 
   std::string name() { return n; }
-  virtual std::optional<CallStackInfo> update_profiler(Profiler *p, trace_t& t) = 0;
+  virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) = 0;
 
 private:
   const std::string n;
 };
 
 
-class Function_k_do_execveat_common : public Function {
+class KernelFunction : public Function {
 public:
-  Function_k_do_execveat_common(std::string name);
-  virtual std::optional<CallStackInfo> update_profiler(Profiler *p, trace_t& t) override;
+  KernelFunction(std::string name);
+  virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) = 0;
+
+protected:
+  addr_t get_current_ptr(processor_t* proc);
+  pid_t  get_current_pid(processor_t* proc);
+};
+
+
+class KF_do_execveat_common : public KernelFunction {
+public:
+  KF_do_execveat_common(std::string name);
+  virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) override;
 
 private:
   std::string find_exec_syscall_filepath(Profiler *p, processor_t *proc);
@@ -48,29 +61,32 @@ private:
 };
 
 
-class Function_k_set_mm_asid : public Function {
+class KF_set_mm_asid : public KernelFunction {
 public:
-  Function_k_set_mm_asid(std::string name);
-  virtual std::optional<CallStackInfo> update_profiler(Profiler *p, trace_t& t) override;
+  KF_set_mm_asid(std::string name);
+  virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) override;
 
 private:
   bool called_by_do_execveat_common(std::vector<CallStackInfo>& cs);
 };
 
-class Function_k_pick_next_task_fair : public Function {
+class KF_pick_next_task_fair : public KernelFunction {
 public:
-  Function_k_pick_next_task_fair(std::string name);
-  virtual std::optional<CallStackInfo> update_profiler(Profiler *p, trace_t& t) override;
+  KF_pick_next_task_fair(std::string name);
+  virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) override;
 
 private:
   std::optional<pid_t> get_pid_next_task(Profiler *p, processor_t* proc);
 };
 
-/* class Function_k_kernel_clone : public Function { */
-/* public: */
-/* Function_k_kernel_clone(std::string name); */
-/* virtual std::optional<CallStackInfo> update_profiler(Profiler *p, trace_t& t) override; */
-/* }; */
+class KF_kernel_clone : public KernelFunction {
+public:
+  KF_kernel_clone(std::string name);
+  virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) override;
+
+private:
+  pid_t get_forked_task_pid(Profiler* p, processor_t* proc);
+};
 
 } // namespace Profiler
 

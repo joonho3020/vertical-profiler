@@ -49,11 +49,10 @@ public:
   // TODO : error checking if the function exists
   void add_kernel_func_to_profile(Function* f, bool rewind_at_exit);
 
-  unsigned int   get_riscv_abi_ireg(std::string rname);
   ObjdumpParser* get_objdump_parser(std::string oname);
-
   std::vector<CallStackInfo>& get_callstack();
   std::map<reg_t, std::string>& get_asid2bin_map();
+  std::map<pid_t, std::string>& get_pid2bin_map();
 
   void step_until_insn(std::string type, trace_t& trace);
 
@@ -70,7 +69,6 @@ private:
   addr_t kernel_function_end_addr(std::string fname);
 
   std::map<std::string, ObjdumpParser*> objdumps;
-  std::map<std::string, unsigned int> riscv_abi;
 
   Disassembler disasm;
 
