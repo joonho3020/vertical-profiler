@@ -15,10 +15,34 @@ namespace Profiler {
 #define unlikely(x) __builtin_expect(x, 1)
 
 
-#define pprintf(...)                       \
-  fprintf(stdout, "[prof] " __VA_ARGS__ ); \
+#define pprintf(...)                                          \
+  fprintf(stdout, "\033[0;32m[Prof]\033[0m " __VA_ARGS__ );   \
   fflush(stdout);
 
+#define pexit(...)                                            \
+  fprintf(stdout, "\033[0;31m[Prof]\033[0m " __VA_ARGS__ );   \
+  fflush(stdout);                                             \
+  exit(1);
+
+#define passert(...)                                            \
+  fprintf(stdout, "\033[0;31m[Prof]\033[0m " __VA_ARGS__ );   \
+  fflush(stdout);                                             \
+  assert(false);
+
+/* #define pdebug(...)                                          \ */
+/* fprintf(stdout, "\033[0;33m[Prof Debug]\033[0m " __VA_ARGS__ );   \ */
+/* fflush(stdout); */
+
+#define __pprintlog(out, pfx, ...)                            \
+  fprintf(out, "[" pfx "] " __VA_ARGS__ );                     \
+  fflush(out);
+
+#define pprintlog(pfx, ...)                                   \
+  __pprintlog(p->get_prof_logfile(), pfx, __VA_ARGS__ );
+
+#define pprintall(pfx, ...)                                   \
+  pprintf( __VA_ARGS__ );                                     \
+  pprintlog(pfx, __VA_ARGS__ );
 
 
 /////////////////////////////////////////////////////
@@ -27,8 +51,6 @@ namespace Profiler {
 typedef uint64_t addr_t;
 typedef uint64_t reg_t;
 typedef uint32_t pid_t;
-
-
 
 
 /////////////////////////////////////////////////////
@@ -43,6 +65,9 @@ typedef uint32_t pid_t;
 #define offsetof_task_struct_pid 1072
 
 #define k_kernel_clone "kernel_clone"
+
+#define k_finish_task_switch "finish_task_switch.isra.0"
+#define k_finish_task_switch_prev_arg 0
 
 #define KERNEL "k"
 
@@ -65,7 +90,6 @@ static std::map<std::string, unsigned int> riscv_abi_ireg {
   {"s8", 24}, {"s9", 25}, {"s10", 26}, {"s11", 27},
   {"t3", 28}, {"t4", 29}, {"t5" , 30}, {"t6" , 31}
 };
-
 
 } // namespace Profiler
 

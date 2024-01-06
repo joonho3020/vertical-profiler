@@ -88,7 +88,6 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --kernel-info=<name>  <objdump,dwarf> of kernel\n");
   fprintf(stderr, "  --user-info=<name>    <objdump,dwarf>+<objdump,dwarf>... of space programs\n");
   fprintf(stderr, "  --prof-out=<name>     Directory to output profiling data\n");
-  fprintf(stderr, "  --callstack=<name>    Unwinded stack file\n");
 
   exit(exit_code);
 }
@@ -501,14 +500,6 @@ int main(int argc, char** argv)
       dwarf_paths.push_back({dirs.back(), info[0]});
     }
   });
-  FILE *callstack = NULL;
-  parser.option(0, "callstack", 1, [&](const char* s){
-     if ((callstack = fopen(s, "w"))==NULL) {
-        fprintf(stderr, "Unable to open callstack file '%s'\n", s);
-        exit(-1);
-     }
-  });
-
   auto argv1 = parser.parse(argv);
   std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
 
@@ -567,9 +558,25 @@ int main(int argc, char** argv)
   }
 
 
+  std::string prof_outdir_cpp = std::string(prof_outdir);
+
+  FILE *callstack = fopen((prof_outdir_cpp + "/PROF-CALLSTACK").c_str(), "w");
+  if (callstack == NULL) {
+    fprintf(stderr, "Unable to open callstack file PROF-CALLSTACK\n");
+    exit(-1);
+  }
+
+  FILE *proflog = fopen((prof_outdir_cpp + "/PROF-LOGS").c_str(), "w");
+  if (proflog == NULL) {
+    fprintf(stderr, "Unable to open log file PROF-LOGS\n");
+    exit(-1);
+  }
+
+  std::string prof_tracedir = prof_outdir_cpp + "/traces";
+
   Profiler::Profiler p(objdump_paths, dwarf_paths, &cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
       log_path, dtb_enabled, dtb_file, socket, cmd_file,
-      true, prof_outdir, callstack);
+      true, prof_tracedir, callstack, proflog);
 
   if (dump_dts) {
     printf("%s", p.get_dts());
@@ -580,9 +587,7 @@ int main(int argc, char** argv)
 
   auto return_code = p.run();
 
-  if (callstack != NULL) {
-    p.process_callstack();
-  }
+  p.process_callstack();
 
   return return_code;
 }

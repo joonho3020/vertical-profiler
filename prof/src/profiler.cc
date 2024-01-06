@@ -17,22 +17,37 @@
 #include <riscv/mmu.h>
 
 #include "callstack_info.h"
+#include "perfetto_trace.h"
 #include "stack_unwinder.h"
 #include "types.h"
 #include "objdump_parser.h"
 #include "thread_pool.h"
 #include "string_parser.h"
 #include "profiler.h"
+#include "perfetto_trace.h"
 
 // TODO : 
+// 1. Logging the outputs of the profiler is becoming slow (extra 30 second to boot linux).
+//    Need to optimize this.
+//
 // 3. Better algorithm for checking if a function is called on top of a parent
 // function. 
 //  - TODO : return CallStackInfo* in Function
 //
 // 5. Check robustness of func_args_reg & func_ret_reg of ObjdumpParser
+//
 // 6. Auto generate the consts section regarding function arguments & offsetof
+//
+// 7. Separate out the profiling part & the post-processing part
+//    -> remove the StackUnwinder from Profiler & make this process into a
+//    separate main??
+//    -> Or do we have to???? The post-processing requires all the metadata
+//    from the profiler anyways.
+//    -> maybe the correct way to do things is to output some logs during the
+//    profiling run, and when it is finished, read those logs while using the
+//    profiling metadata directly (which is how the stack-unwinder is implemented)
 
-/* #define PROFILER_ASSERT */
+#define PROFILER_DEBUG
 
 #define GET_TIME() std::chrono::high_resolution_clock::now()
 
@@ -71,11 +86,13 @@ Profiler::Profiler(
       bool socket_enabled,
       FILE *cmd_file,
       bool checkpoint,
-      const char *prof_outdir,
-      FILE *stackfile)
+      std::string prof_tracedir,
+      FILE *stackfile,
+      FILE *prof_logfile)
   : sim_lib_t(cfg, halted, mems, plugin_device_factories, args, dm_config,
           log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file, checkpoint),
-    prof_outdir(prof_outdir)
+    prof_tracedir(prof_tracedir),
+    prof_logfile(prof_logfile)
 {
   for (auto& p: objdump_paths) {
     objdumps.insert({p.first, new ObjdumpParser(p.second)});
@@ -91,11 +108,14 @@ Profiler::Profiler(
   Function* f2 = new KF_set_mm_asid(k_set_mm_asid);
   this->add_kernel_func_to_profile(f2, false);
 
-  Function* f3 = new KF_pick_next_task_fair(k_pick_next_task_fair);
+  Function* f3 = new KF_kernel_clone(k_kernel_clone);
   this->add_kernel_func_to_profile(f3, true);
 
-  Function* f4 = new KF_kernel_clone(k_kernel_clone);
+  Function* f4 = new KF_pick_next_task_fair(k_pick_next_task_fair);
   this->add_kernel_func_to_profile(f4, true);
+
+  Function* f5 = new KF_finish_task_switch(k_finish_task_switch);
+  this->add_kernel_func_to_profile(f5, false);
 }
 
 Profiler::~Profiler() {
@@ -110,8 +130,7 @@ void Profiler::add_kernel_func_to_profile(Function* f, bool rewind_at_exit) {
 
   auto it = objdumps.find(KERNEL);
   if (it == objdumps.end()) {
-    pprintf("Could not find kernel objdump\n");
-    exit(1);
+    pexit("Could not find kernel objdump\n");
   }
 
   ObjdumpParser* kdump = it->second;
@@ -135,18 +154,21 @@ void Profiler::add_kernel_func_to_profile(Function* f, bool rewind_at_exit) {
 }
 
 ObjdumpParser* Profiler::get_objdump_parser(std::string oname) {
-#ifdef PROFILER_ASSERT
+#ifdef PROFILER_DEBUG
   if (objdumps.find(oname) == objdumps.end()) {
-    fprintf(stderr, "Objdump mismatch: %s\n", oname.c_str());
-    exit(1);
+    pexit("Objdump mismatch: %s\n", oname.c_str());
   }
 #endif
   return objdumps.find(oname)->second;
 }
 
 
-std::vector<CallStackInfo>& Profiler::get_callstack() {
-  return fstack;
+std::vector<CallStackInfo>& Profiler::get_callstack(pid_t pid) {
+  if (fstacks.find(pid) == fstacks.end()) {
+    pprintf("Callstack for PID %u not found\n", pid);
+    fstacks[pid] = std::vector<CallStackInfo>();
+  }
+  return fstacks[pid];
 }
 
 std::map<reg_t, std::string>& Profiler::get_asid2bin_map() {
@@ -157,14 +179,12 @@ std::map<pid_t, std::string>& Profiler::get_pid2bin_map() {
   return pid_to_bin;
 }
 
-addr_t Profiler::kernel_function_start_addr(std::string fname) {
-  ObjdumpParser* obj = objdumps.find(KERNEL)->second;
-  return obj->get_func_start_va(fname);
+void Profiler::set_curpid(pid_t pid) {
+  cur_pid = pid;
 }
 
-addr_t Profiler::kernel_function_end_addr(std::string fname) {
-  ObjdumpParser* obj = objdumps.find(KERNEL)->second;
-  return obj->get_func_end_va(fname);
+pid_t Profiler::get_curpid() {
+  return cur_pid;
 }
 
 bool Profiler::found_registered_func_start_addr(addr_t va) {
@@ -253,6 +273,9 @@ int Profiler::run() {
         pctrace.clear();
         break;
       } else if (found_registered_func_end_addr(pc)) {
+#ifdef PROFILER_DEBUG
+/* pdebug("Exit PC: 0x%" PRIx64 "\n", pc); */
+#endif
         popcnt++;
       }
     }
@@ -260,7 +283,15 @@ int Profiler::run() {
     MEASURE_AVG_TIME(trace_check_s, trace_check_e, trace_check_us, trace_check_cnt);
 
     while (popcnt--) {
-      fstack.pop_back();
+#ifdef PROFILER_DEBUG
+      if (fstacks.find(cur_pid) == fstacks.end()) {
+        pexit("Could not find callstack for PID %u\n", cur_pid);
+      }
+      if (fstacks[cur_pid].size() == 0) {
+        pexit("Callstack for PID %u empty, popcnt: %d\n", cur_pid, popcnt);
+      }
+#endif
+      fstacks[cur_pid].pop_back();
     }
 
     if (rewind) {
@@ -279,13 +310,12 @@ int Profiler::run() {
       rewind_trace = this->run_trace();
       pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
 
-#ifdef PROFILER_ASSERT
+#ifdef PROFILER_DEBUG
       if (unlikely(fwd_steps < rewind_trace.size())) {
-        printf("fwd_steps: %" PRIu64 " < fastfwd_steps: % " PRIu64 "\n",
+        pexit("fwd_steps: %" PRIu64 " < fastfwd_steps: % " PRIu64 "\n",
             fwd_steps, rewind_trace.size());
-        exit(1);
       }
-#endif PROFILER_ASSERT
+#endif PROFILER_DEBUG
 
       bool found_function = false;
       do {
@@ -299,7 +329,7 @@ int Profiler::run() {
             auto f = prof_pc_to_func[va];
             OptCallStackInfo entry = f->update_profiler(this, pctrace);
             if (entry.has_value())
-              fstack.push_back(entry.value());
+              fstacks[cur_pid].push_back(entry.value());
 
             found_function = true;
             break;
@@ -363,7 +393,7 @@ std::string Profiler::spiketrace_filename(uint64_t idx) {
 }
 
 void Profiler::submit_trace_to_threadpool(trace_t& trace) {
-  std::string name = prof_outdir + "/" + spiketrace_filename(trace_idx);
+  std::string name = prof_tracedir + "/" + spiketrace_filename(trace_idx);
   ++trace_idx;
   loggers.queueJob(printLogs, trace, name);
 }
@@ -376,11 +406,10 @@ void Profiler::process_callstack() {
   uint64_t cycle = 0;
 
   for (uint64_t i = 0; i < trace_idx; i++) {
-    std::string path = prof_outdir + "/" + spiketrace_filename(i);
+    std::string path = prof_tracedir + "/" + spiketrace_filename(i);
     std::ifstream spike_trace = std::ifstream(path, std::ios::binary);
     if (!spike_trace) {
-      std::cerr << path << " does not exist" << std::endl;
-      exit(1);
+      pexit("%s does not exist\n", path.c_str());
     }
 
     std::string line;

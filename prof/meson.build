@@ -45,6 +45,12 @@ tracerv_lib = library('tracerv_lib',
   ],
   dependencies : [lib_deps])
 
+perfetto_trace_lib = library('perfetto_trace_lib',
+  [
+    'src/perfetto_trace.cc'
+  ])
+  
+
 executable('file_splitter',
   'src/file_splitter_main.cc',
   link_with : [
@@ -119,3 +125,10 @@ objdump_parser_test = executable('test_objdump_parser',
     objdump_parser_lib
   ])
 test('objdump_parser test', objdump_parser_test)
+
+perfetto_trace_test = executable('test_perfetto_trace',
+  'test/test_perfetto_trace.cc',
+  link_with : [
+    perfetto_trace_lib
+  ])
+test('perfetto_trace test', perfetto_trace_test)

@@ -70,6 +70,15 @@ private:
   bool called_by_do_execveat_common(std::vector<CallStackInfo>& cs);
 };
 
+class KF_kernel_clone : public KernelFunction {
+public:
+  KF_kernel_clone(std::string name);
+  virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) override;
+
+private:
+  pid_t get_forked_task_pid(Profiler* p, processor_t* proc);
+};
+
 class KF_pick_next_task_fair : public KernelFunction {
 public:
   KF_pick_next_task_fair(std::string name);
@@ -79,13 +88,13 @@ private:
   std::optional<pid_t> get_pid_next_task(Profiler *p, processor_t* proc);
 };
 
-class KF_kernel_clone : public KernelFunction {
+class KF_finish_task_switch : public KernelFunction {
 public:
-  KF_kernel_clone(std::string name);
+  KF_finish_task_switch(std::string name);
   virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) override;
 
 private:
-  pid_t get_forked_task_pid(Profiler* p, processor_t* proc);
+  pid_t get_prev_pid(Profiler *p, processor_t* proc);
 };
 
 } // namespace Profiler

@@ -38,56 +38,71 @@ public:
       bool socket_enabled,
       FILE *cmd_file,
       bool checkpoint,
-      const char* prof_outdir,
-      FILE *stackfile);
+      std::string prof_tracedir,
+      FILE *stackfile,
+      FILE *proflogfile);
 
   ~Profiler();
 
+
+public:
+  // user facing APIs
   virtual int run() override;
   void process_callstack();
-
-  // TODO : error checking if the function exists
   void add_kernel_func_to_profile(Function* f, bool rewind_at_exit);
 
-  ObjdumpParser* get_objdump_parser(std::string oname);
-  std::vector<CallStackInfo>& get_callstack();
-  std::map<reg_t, std::string>& get_asid2bin_map();
-  std::map<pid_t, std::string>& get_pid2bin_map();
-
-  void step_until_insn(std::string type, trace_t& trace);
+  FILE* get_prof_logfile() { return prof_logfile; }
 
 private:
+  inline bool found_registered_func_start_addr(addr_t va);
+  inline bool found_registered_func_end_addr(addr_t va);
+  bool   user_space_addr(addr_t va);
+
+private:
+  std::map<std::string, ObjdumpParser*> objdumps;
+  Disassembler disasm;
+
+  // Profiler state
   std::map<addr_t, Function*> prof_pc_to_func;
   std::vector<addr_t>         func_pc_prof_start;
   std::vector<addr_t>         func_pc_prof_exit;
 
-  inline bool found_registered_func_start_addr(addr_t va);
-  inline bool found_registered_func_end_addr(addr_t va);
-
-  bool   user_space_addr(addr_t va);
-  addr_t kernel_function_start_addr(std::string fname);
-  addr_t kernel_function_end_addr(std::string fname);
-
-  std::map<std::string, ObjdumpParser*> objdumps;
-
-  Disassembler disasm;
-
-  std::vector<CallStackInfo> fstack;
-
-
+  std::map<pid_t, std::vector<CallStackInfo>> fstacks;
   std::map<reg_t, std::string> asid_to_bin;
 
   // fork : add a new pid to bin mapping. the binary should be from the parent pid
   // exec : update the existing pid to bin mapping
   std::map<pid_t, std::string> pid_to_bin;
 
+
+  // NOTE : There can be times when cur_pid and the pid from Spike does not
+  // match. This is because we are updating cur_pid whenever CFS makes a
+  // scheduling decision. However, the kernel has to perform the
+  // "context_switch" function after the scheduling decision is made to
+  // update the PID. Hence in this case, the value of cur_pid is one step
+  // ahead of the functional sim's PID.
+  pid_t cur_pid = 0;
+
+public:
+  // APIs for updating the profiler state
+  ObjdumpParser* get_objdump_parser(std::string oname);
+  std::vector<CallStackInfo>& get_callstack(pid_t pid);
+  std::map<reg_t, std::string>& get_asid2bin_map();
+  std::map<pid_t, std::string>& get_pid2bin_map();
+  void  set_curpid(pid_t pid);
+  pid_t get_curpid();
+
+  void step_until_insn(std::string type, trace_t& trace);
+
 private:
-  // Stuff for output logging
-  std::string prof_outdir;
+  // Stuff for output logging and tracing
+  std::string prof_tracedir;
   uint64_t trace_idx = 0;
   void submit_trace_to_threadpool(trace_t& trace);
   std::string spiketrace_filename(uint64_t idx);
   ThreadPool loggers;
+
+  FILE* prof_logfile;
 
 private:
   // Stuff for stack unwinding

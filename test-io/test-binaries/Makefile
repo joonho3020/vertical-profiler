@@ -15,7 +15,7 @@ PROGRAMS = hello
 	$(BARE_CC) $(CFLAGS) -specs=htif_nano.specs  -o $@ $^
 
 %.linux.riscv: %.c
-	$(LINUX_CC) $(CFLAGS) -o $@ $^
+	$(LINUX_CC) $(CFLAGS) -DLINUX -o $@ $^
 
 .PHONY: default
 default: bare linux
