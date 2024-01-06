@@ -1,4 +1,5 @@
 
+#include <cstdint>
 #include <cstdlib>
 #include <string>
 #include <sys/types.h>
@@ -100,7 +101,14 @@ Profiler::Profiler(
 
   stack_unwinder = new StackUnwinder(dwarf_paths, stackfile);
 
-  loggers.start();
+  loggers.start(4);
+  packet_loggers.start(1);
+
+  proflog_tp = fopen("./out/PROF-LOGS-THREADPOOL", "w");
+  if (proflog_tp == NULL) {
+    fprintf(stderr, "Unable to open log file PROF-LOGS-THREADPOOL\n");
+    exit(-1);
+  }
 
   Function* f1 = new KF_do_execveat_common(k_do_execveat_common);
   this->add_kernel_func_to_profile(f1, false);
@@ -309,6 +317,7 @@ int Profiler::run() {
       run_for(fastfwd_steps);
       rewind_trace = this->run_trace();
       pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
+      insn_retired += (reg_t)rewind_trace.size();
 
 #ifdef PROFILER_DEBUG
       if (unlikely(fwd_steps < rewind_trace.size())) {
@@ -339,20 +348,28 @@ int Profiler::run() {
         run_for(1);
         rewind_trace = this->run_trace();
         pctrace.insert(pctrace.end(), rewind_trace.begin(), rewind_trace.end());
+        ++insn_retired;
         INCREMENT_CNTR(single_step_cnt);
 
       } while (!found_function);
 
       auto rewind_e = GET_TIME();
       MEASURE_AVG_TIME(rewind_s, rewind_e, rewind_us, rewind_cnt);
+    } else {
+      insn_retired += (reg_t)pctrace.size();
     }
     submit_trace_to_threadpool(pctrace);
+    if ((uint32_t) packet_traces.size() >= PACKET_TRACE_FLUSH_THRESHOLD) {
+      submit_packet_trace_to_threadpool();
+      packet_traces.clear();
+    }
   }
   auto run_e = GET_TIME();
   MEASURE_TIME(run_s, run_e, run_us);
 
-
+  submit_packet_trace_to_threadpool();
   loggers.stop();
+  packet_loggers.stop();
   auto rc = stop_sim();
 
   std::ofstream os("ASID-MAPPING", std::ofstream::out);
@@ -398,6 +415,13 @@ void Profiler::submit_trace_to_threadpool(trace_t& trace) {
   loggers.queueJob(printLogs, trace, name);
 }
 
+void Profiler::submit_packet(Perfetto::TracePacket pkt) {
+  packet_traces.push_back(pkt);
+}
+
+void Profiler::submit_packet_trace_to_threadpool() {
+  packet_loggers.queueJob(printPacketLogs, packet_traces, proflog_tp);
+}
 
 void Profiler::process_callstack() {
   pprintf("Start stack unwinding\n");

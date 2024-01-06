@@ -9,6 +9,7 @@
 #include "callstack_info.h"
 #include "profiler.h"
 #include "types.h"
+#include "perfetto_trace.h"
 
 namespace Profiler {
 
@@ -96,17 +97,20 @@ std::string KF_do_execveat_common::find_exec_syscall_filepath(
 
   addr_t va = state->pc;
   addr_t asid = proc->get_asid();
-  pprintall(k_do_execveat_common,
-      "find_launched_binary done %s\n", name.c_str());
 
   // update the pid mapping
   std::map<pid_t, std::string>& pid2bin = p->get_pid2bin_map();
   pid_t pid = get_current_pid(proc);
   auto it = pid2bin.find(pid);
+
   if (it != pid2bin.end()) {
-    pprintall(k_do_execveat_common,
-        "Updating pid2bin[%u]: %s -> %s\n",
-        pid, it->second.c_str(), name.c_str());
+    pprintf("Updating pid2bin[%u]: %s -> %s\n",
+      pid, it->second.c_str(), name.c_str());
+
+    p->submit_packet(Perfetto::TracePacket(
+          std::string(k_do_execveat_common),
+          Perfetto::TYPE_INSTANT,
+          p->get_insn_retired()));
   }
   pid2bin[pid] = name;
 
@@ -138,9 +142,13 @@ OptCallStackInfo KF_set_mm_asid::update_profiler(Profiler *p, trace_t& t) {
 
     p->get_asid2bin_map().insert({asid, bin});
 
-    pprintall(k_set_mm_asid,
-        "Found mapping ASID: %" PRIu64 " PID: %u bin: %s\n",
+    pprintf("Found mapping ASID: %" PRIu64 " PID: %u bin: %s\n",
         asid, pid, bin.c_str());
+
+    p->submit_packet(Perfetto::TracePacket(
+          std::string(k_set_mm_asid),
+          Perfetto::TYPE_INSTANT,
+          p->get_insn_retired()));
 
     if (pid != p->get_curpid()) {
       pexit("%d Prof internal pid: %u, spike pid: %u\n", __LINE__, p->get_curpid(), pid);
@@ -178,8 +186,12 @@ OptCallStackInfo KF_kernel_clone::update_profiler(Profiler *p, trace_t& t) {
     pid2bin[newpid] = "X";
   }
 
-  pprintlog(k_kernel_clone,
-      "Forked p: %u c: %u bin: %s\n", parpid, newpid, pid2bin[newpid].c_str());
+  pprintf("Forked p: %u c: %u bin: %s\n", parpid, newpid, pid2bin[newpid].c_str());
+
+  p->submit_packet(Perfetto::TracePacket(
+        std::string(k_kernel_clone),
+        Perfetto::TYPE_INSTANT,
+        p->get_insn_retired()));
 
   return {};
 }
@@ -215,15 +227,14 @@ std::optional<pid_t> KF_pick_next_task_fair::get_pid_next_task(Profiler *p, proc
   state_t* state = proc->get_state();
   addr_t next_task_ptr = state->XPR[reg_idx];
   if (next_task_ptr == 0) {
-    pprintall(k_pick_next_task_fair, "CFS doesn't have a task to schedule\n");
+    pprintf("CFS doesn't have a task to schedule\n");
     return {};
   } else {
     addr_t next_task_pid_addr = next_task_ptr + offsetof_task_struct_pid;
     pid_t pid = mmu->load<pid_t>(next_task_pid_addr);
 
     auto pid2bin = p->get_pid2bin_map();
-    pprintlog(k_pick_next_task_fair,
-        "CFS next task pid: %" PRIu32 " %s\n", pid, pid2bin[pid].c_str());
+/* pprintf("CFS next task pid: %" PRIu32 " %s\n", pid, pid2bin[pid].c_str()); */
     return std::optional<pid_t>(pid);
   }
 }
@@ -239,8 +250,21 @@ OptCallStackInfo KF_finish_task_switch::update_profiler(Profiler *p, trace_t& t)
   pid_t prev_pid = get_prev_pid(p, proc);
   p->set_curpid(cur_pid);
 
-  pprintlog(k_finish_task_switch,
-      "ContextSwitch Finished %u -> %u\n", prev_pid, cur_pid);
+/* pprintf("ContextSwitch Finished %u -> %u\n", prev_pid, cur_pid); */
+
+  auto pid2bin = p->get_pid2bin_map();
+
+  std::string prev_bin = pid2bin[prev_pid];
+  p->submit_packet(Perfetto::TracePacket(
+        prev_bin,
+        Perfetto::TYPE_SLICE_END,
+        p->get_insn_retired()));
+
+  std::string cur_bin = pid2bin[cur_pid];
+  p->submit_packet(Perfetto::TracePacket(
+        cur_bin,
+        Perfetto::TYPE_SLICE_BEGIN,
+        p->get_insn_retired()));
 
   return CallStackInfo(k_finish_task_switch, "");
 }

@@ -19,7 +19,7 @@ enum PACKET_TYPE {
 class TracePacket { // corresponds to the trace_packet.proto
 public:
   TracePacket(std::string name, PACKET_TYPE type_enum, uint64_t timestamp);
-  void print(std::ofstream& os);
+  void print(FILE* of);
 
 private:
   std::string name;
@@ -35,7 +35,7 @@ public:
   void close();
 
 private:
-  std::ofstream ofs;
+  FILE* of;
 };
 
 } // namespace Perfetto

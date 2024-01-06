@@ -20,6 +20,7 @@
 #include "thread_pool.h"
 #include "disam.h"
 #include "callstack_info.h"
+#include "perfetto_trace.h"
 
 namespace Profiler {
 
@@ -82,6 +83,7 @@ private:
   // update the PID. Hence in this case, the value of cur_pid is one step
   // ahead of the functional sim's PID.
   pid_t cur_pid = 0;
+  reg_t insn_retired = 0;
 
 public:
   // APIs for updating the profiler state
@@ -94,15 +96,26 @@ public:
 
   void step_until_insn(std::string type, trace_t& trace);
 
+  reg_t get_insn_retired() { return insn_retired; }
+
+  void submit_packet(Perfetto::TracePacket pkt);
+
+
 private:
   // Stuff for output logging and tracing
   std::string prof_tracedir;
   uint64_t trace_idx = 0;
-  void submit_trace_to_threadpool(trace_t& trace);
   std::string spiketrace_filename(uint64_t idx);
-  ThreadPool loggers;
+  ThreadPool<trace_t, std::string> loggers;
+  void submit_trace_to_threadpool(trace_t& trace);
 
   FILE* prof_logfile;
+
+  std::vector<Perfetto::TracePacket> packet_traces;
+  ThreadPool<std::vector<Perfetto::TracePacket>, FILE*> packet_loggers;
+  const uint32_t PACKET_TRACE_FLUSH_THRESHOLD = 1000;
+  FILE* proflog_tp;
+  void submit_packet_trace_to_threadpool();
 
 private:
   // Stuff for stack unwinding

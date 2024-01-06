@@ -29,10 +29,6 @@ namespace Profiler {
   fflush(stdout);                                             \
   assert(false);
 
-/* #define pdebug(...)                                          \ */
-/* fprintf(stdout, "\033[0;33m[Prof Debug]\033[0m " __VA_ARGS__ );   \ */
-/* fflush(stdout); */
-
 #define __pprintlog(out, pfx, ...)                            \
   fprintf(out, "[" pfx "] " __VA_ARGS__ );                     \
   fflush(out);

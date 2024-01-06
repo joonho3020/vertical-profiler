@@ -20,7 +20,7 @@ TracePacket::TracePacket(std::string name, PACKET_TYPE type_enum, uint64_t times
       type = "TYPE_SLICE_END";
       break;
     case TYPE_INSTANT:
-      type = "TYPE_INSANT";
+      type = "TYPE_INSTANT";
       break;
     default:
       assert(false);
@@ -28,32 +28,35 @@ TracePacket::TracePacket(std::string name, PACKET_TYPE type_enum, uint64_t times
   }
 }
 
-void TracePacket::print(std::ofstream& os) {
-  os << "packet {\n";
-  os << "\ttimestamp: " << timestamp << "\n";
-  os << "\ttrack_event: {\n";
-  os << "\t\ttype: " << type << "\n";
-  os << "\t\tname: \"" << name << "\"\n";
-  os << "\t}\n";
-  os << "\ttrusted_packet_sequence_id: 1\n";
-  os << "}\n";
+void TracePacket::print(FILE* of) {
+  fprintf(of, "packet {\n");
+  fprintf(of, "\ttimestamp: %" PRIu64 "\n", timestamp);
+  fprintf(of, "\ttrack_event: {\n");
+  fprintf(of, "\t\ttype: %s\n", type.c_str());
+  fprintf(of, "\t\tname: \"%s\"\n", name.c_str());
+  fprintf(of, "\t}\n");
+  fprintf(of, "\ttrusted_packet_sequence_id: 1\n");
+  fprintf(of, "}\n");
+  fflush(of);
+
+/* fprintf(of, "%s\n", name.c_str()); */
+/* fflush(of); */
 }
 
 Trace::Trace(std::string ofname) {
-  ofs.open(ofname);
-  if (ofs.fail()) {
-    std::cout << "Could not open output trace file" << std::endl;
-    exit(1);
+  of = fopen(ofname.c_str(), "w");
+  if (of == NULL) {
+    fprintf(stderr, "Unable to open log file %s\n", ofname.c_str());
+    exit(-1);
   }
 }
 
 void Trace::add_packet(TracePacket tp) {
-  tp.print(ofs);
+  tp.print(of);
 }
 
 void Trace::close() {
-  ofs.flush();
-  ofs.close();
+  fclose(of);
 }
 
 
