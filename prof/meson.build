@@ -79,7 +79,8 @@ executable('profiler_main',
     'src/thread_pool.cc',
     'src/disasm.cc',
     'src/callstack_info.cc',
-    'src/stack_unwinder.cc'
+    'src/stack_unwinder.cc',
+    'src/perfetto_trace.cc'
   ],
   link_with : [
     tracerv_lib
