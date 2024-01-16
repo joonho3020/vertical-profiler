@@ -1,0 +1,5 @@
+{
+  "name" : "iceblk-bare",
+  "base" : "bare-base.json",
+  "bin" : "blkdev.riscv"
+}

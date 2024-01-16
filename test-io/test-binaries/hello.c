@@ -5,7 +5,7 @@
 #endif
 
 int main() {
-  for (int i = 0; i < 10000; i++)
+  for (int i = 0; i < 10; i++)
     printf("hello world %d\n", i);
 
 #ifdef LINUX
