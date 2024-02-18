@@ -3,7 +3,7 @@
 	url = https://github.com/ucb-bar/chipyard.git
 [submodule "prof/riscv-isa-sim-private"]
 	path = prof/riscv-isa-sim-private
-	url = git@github.com:joey0320/riscv-isa-sim-profiler.git
+	url = git@github.com:joonho3020/riscv-isa-sim-profiler.git
 [submodule "prof/spike-devices"]
 	path = prof/spike-devices
 	url = git@github.com:ucb-bar/spike-devices.git
