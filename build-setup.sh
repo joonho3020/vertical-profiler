@@ -7,7 +7,7 @@ cd chipyard
 ./build-setup.sh --force
 cd ..
 
-
+source env.sh
 cd prof/protobuf
 git submodule update --init --recursive
 ./autogen.sh

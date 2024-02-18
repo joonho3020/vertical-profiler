@@ -23,9 +23,9 @@
 #include "types.h"
 #include "objdump_parser.h"
 #include "thread_pool.h"
-#include "string_parser.h"
 #include "profiler.h"
 #include "perfetto_trace.h"
+#include "../lib/string_parser.h"
 
 // TODO : 
 // 1. Logging the outputs of the profiler is becoming slow (extra 30 second to boot linux).

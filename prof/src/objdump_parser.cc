@@ -5,7 +5,7 @@
 #include <iostream>
 #include <stdlib.h>
 #include "objdump_parser.h"
-#include "string_parser.h"
+#include "../lib/string_parser.h"
 
 namespace Profiler {
 

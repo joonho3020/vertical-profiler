@@ -1,14 +1,11 @@
 
 #include <riscv/cfg.h>
-#include <riscv/sim_lib.h>
 #include <riscv/mmu.h>
-#include <riscv/arith.h>
-/* #include <riscv/remote_bitbang.h> */
 #include <riscv/cachesim.h>
 #include <riscv/extension.h>
-#include <fesvr/option_parser.h>
-
+#include <riscv/arith.h>
 #include <dlfcn.h>
+#include <fesvr/option_parser.h>
 #include <stdexcept>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,12 +17,11 @@
 #include <cinttypes>
 #include <sstream>
 
-#include "profiler.h"
-#include "../lib/string_parser.h"
+#include "sim_lib.h"
 
 static void help(int exit_code = 1)
 {
-  fprintf(stderr, "Spike RISC-V ISA Simulator\n\n");
+  fprintf(stderr, "Spike RISC-V ISA Simulator\n");
   fprintf(stderr, "usage: spike [host options] <target program> [target options]\n");
   fprintf(stderr, "Host Options:\n");
   fprintf(stderr, "  -p<n>                 Simulate <n> processors [default 1]\n");
@@ -85,9 +81,9 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --dm-no-halt-groups   Debug module won't support halt groups\n");
   fprintf(stderr, "  --dm-no-impebreak     Debug module won't support implicit ebreak in program buffer\n");
   fprintf(stderr, "  --blocksz=<size>      Cache block size (B) for CMO operations(powers of 2) [default 64]\n");
-  fprintf(stderr, "  --kernel-info=<name>  <objdump,dwarf> of kernel\n");
-  fprintf(stderr, "  --user-info=<name>    <objdump,dwarf>+<objdump,dwarf>... of space programs\n");
-  fprintf(stderr, "  --prof-out=<name>     Directory to output profiling data\n");
+  fprintf(stderr, "  --ckpt-mode=<N>       0: run w/o ckpt (default), 1: ckpt at ckpt-step & reload, 2: load ckpt from proto-json and run\n");
+  fprintf(stderr, "  --ckpt-step=<size>    Steps to run before serialize & reload\n");
+  fprintf(stderr, "  --rtl-trace=<name>    Read trace from file\n");
 
   exit(exit_code);
 }
@@ -352,8 +348,9 @@ int main(int argc, char** argv)
   bool use_rbb = false;
   unsigned dmi_rti = 0;
   reg_t blocksz = 64;
+  int ckpt_mode = 0;
+  uint64_t ckpt_step = 0;
   debug_module_config_t dm_config;
-  const char *prof_outdir = nullptr;
   cfg_arg_t<size_t> nprocs(1);
 
   cfg_t cfg;
@@ -379,9 +376,6 @@ int main(int argc, char** argv)
     it->second->set_sargs(parsed_args);
     plugin_device_factories.push_back(it->second);
   };
-
-  std::vector<std::pair<std::string, std::string>> objdump_paths;
-  std::vector<std::pair<std::string, std::string>> dwarf_paths;
 
   option_parser_t parser;
   parser.help(&suggest_help);
@@ -454,8 +448,6 @@ int main(int argc, char** argv)
                 [&](const char UNUSED *s){log_commits = true;});
   parser.option(0, "log", 1,
                 [&](const char* s){log_path = s;});
-  parser.option(0, "prof-out", 1,
-                [&](const char* s){prof_outdir = s;});
   FILE *cmd_file = NULL;
   parser.option(0, "debug-cmd", 1, [&](const char* s){
      if ((cmd_file = fopen(s, "r"))==NULL) {
@@ -473,38 +465,34 @@ int main(int argc, char** argv)
       exit(-1);
     }
   });
-  parser.option(0, "kernel-info", 1, [&](const char *s){
-    std::string info = s;
-    std::vector<std::string> paths;
-    Profiler::split(paths, info, ',');
-    assert(paths.size() == 2);
-    objdump_paths.push_back({KERNEL, paths[0]});
-    dwarf_paths.push_back({KERNEL, paths[1]});
+  parser.option(0, "ckpt-mode", 1, [&](const char* s) {
+      ckpt_mode = strtoull(s, 0, 0);
   });
-  parser.option(0, "user-info", 1, [&](const char *s){
-    std::string all_users = s;
-    std::vector<std::string> per_user;
-    Profiler::split(per_user, all_users, '+');
-
-    for (std::string user : per_user) {
-      std::vector<std::string> info;
-      Profiler::split(info, user, ',');
-      assert(info.size() == 2);
-
-      std::vector<std::string> dirs;
-      Profiler::split(dirs, info[0], '/');
-      objdump_paths.push_back({dirs.back(), info[0]});
-
-      dirs.clear();
-      Profiler::split(dirs, info[1], '/');
-      dwarf_paths.push_back({dirs.back(), info[0]});
-    }
+  parser.option(0, "ckpt-step", 1, [&](const char* s) {
+      ckpt_step = strtoull(s, 0, 0);
   });
+  const char* trace_file = NULL;
+  parser.option(0, "rtl-trace", 1, [&](const char* s){
+      trace_file = s;
+  });
+  const char* objdump_file = NULL;
+  parser.option(0, "objdump", 1, [&](const char* s){
+      objdump_file = s;
+  });
+
   auto argv1 = parser.parse(argv);
   std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
 
   if (!*argv1)
     help();
+
+  bool rtl_lockstep = (trace_file != NULL);
+  if (rtl_lockstep) {
+    cfg.mem_layout.clear();
+    cfg.mem_layout.push_back(
+        mem_cfg_t(reg_t(DRAM_BASE), (reg_t)(16384ULL << 20)));
+  }
+
 
   std::vector<std::pair<reg_t, abstract_mem_t*>> mems =
       make_mems(cfg.mem_layout);
@@ -557,37 +545,55 @@ int main(int argc, char** argv)
     cfg.hartids = default_hartids;
   }
 
+  bool checkpoint = (ckpt_mode != 0);
+  cfg.handle_time_by_xcpt = rtl_lockstep;
 
-  std::string prof_outdir_cpp = std::string(prof_outdir);
-
-  FILE *callstack = fopen((prof_outdir_cpp + "/PROF-CALLSTACK").c_str(), "w");
-  if (callstack == NULL) {
-    fprintf(stderr, "Unable to open callstack file PROF-CALLSTACK\n");
-    exit(-1);
-  }
-
-  FILE *proflog = fopen((prof_outdir_cpp + "/PROF-LOGS").c_str(), "w");
-  if (proflog == NULL) {
-    fprintf(stderr, "Unable to open log file PROF-LOGS\n");
-    exit(-1);
-  }
-
-  std::string prof_tracedir = prof_outdir_cpp + "/traces";
-
-  Profiler::Profiler p(objdump_paths, dwarf_paths, &cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
+  sim_lib_t s(&cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
       log_path, dtb_enabled, dtb_file, socket, cmd_file,
-      true, prof_tracedir, callstack, proflog);
+      checkpoint, trace_file);
 
+  printf("isa: %s priv: %s\n", cfg.isa, cfg.priv);
   if (dump_dts) {
-    printf("%s", p.get_dts());
+    printf("%s", s.get_dts());
     return 0;
   }
-  p.configure_log(log, log_commits);
-  p.set_debug(debug);
 
-  auto return_code = p.run();
+  if (ic && l2) ic->set_miss_handler(&*l2);
+  if (dc && l2) dc->set_miss_handler(&*l2);
+  if (ic) ic->set_log(log_cache);
+  if (dc) dc->set_log(log_cache);
+  for (size_t i = 0; i < cfg.nprocs(); i++)
+  {
+    if (ic) s.get_core(i)->get_mmu()->register_memtracer(&*ic);
+    if (dc) s.get_core(i)->get_mmu()->register_memtracer(&*dc);
+    for (auto e : extensions) {
+      s.get_core(i)->register_extension(e());
+    }
+    s.get_core(i)->get_mmu()->set_cache_blocksz(blocksz);
+  }
 
-  p.process_callstack();
+  s.set_debug(debug);
+  s.configure_log(log, log_commits);
+
+  s.init();
+  int return_code;
+
+  if (rtl_lockstep) {
+    return_code = s.run_from_trace(ckpt_step);
+    if (!return_code)
+      printf("Cospike ran successfully\n");
+    else
+      printf("RIP Cospike run failed\n");
+  } else if (!checkpoint) { // run without checkpointing
+    return_code = s.run();
+  } else { // checkpoint, load, run
+    std::string proto;
+    s.run_for(ckpt_step);
+    s.serialize_proto(proto);
+    s.run_for(ckpt_step);
+    s.deserialize_proto(proto);
+    s.run();
+  }
 
   return return_code;
 }

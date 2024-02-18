@@ -7,7 +7,7 @@
 #include <stdio.h>
 
 #include "stack_unwinder.h"
-#include "string_parser.h"
+#include "../lib/string_parser.h"
 #include "types.h"
 
 
@@ -65,12 +65,12 @@ int main() {
 
   while (std::getline(a2b_file, line)) {
     words.clear();
-    Profiler::split(words, line);
+    split(words, line);
     uint64_t k = std::stoull(words[0], &sz, 10);
 
     auto x = words[1];
     words.clear();
-    Profiler::split(words, x, '/');
+    split(words, x, '/');
 
     asid_to_bin[k] = words.back();
   }
@@ -96,7 +96,7 @@ int main() {
     while (std::getline(spike_trace, line)) {
 /* std::cout << line << std::endl; */
       words.clear();
-      Profiler::split(words, line);
+      split(words, line);
       uint64_t addr = std::stoull(words[0], &sz, 16);
       uint64_t asid = std::stoull(words[1], &sz, 10);
 /* uint64_t prv  = std::stoull(words[2], &sz, 10); */
@@ -105,7 +105,7 @@ int main() {
       if (user_space_addr(addr)) {
         std::string binpath = asid_to_bin[asid];
         std::vector<std::string> subpath;
-        Profiler::split(subpath, binpath, '/');
+        split(subpath, binpath, '/');
         stack_unwinder->addInstruction(addr, cycle, subpath.back());
       } else {
         stack_unwinder->addInstruction(addr, cycle, KERNEL);

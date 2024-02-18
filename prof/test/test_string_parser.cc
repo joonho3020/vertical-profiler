@@ -5,10 +5,8 @@
 #include <vector>
 #include <string>
 #include <iostream>
-#include "../src/string_parser.h"
+#include "../lib/string_parser.h"
 
-
-using namespace Profiler;
 
 void test(std::vector<std::string>& words, std::string line) {
   words.clear();
