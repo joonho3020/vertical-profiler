@@ -1,6 +1,5 @@
 
 #include <riscv/cfg.h>
-#include <riscv/sim_lib.h>
 #include <riscv/mmu.h>
 #include <riscv/arith.h>
 /* #include <riscv/remote_bitbang.h> */
@@ -22,6 +21,7 @@
 
 #include "profiler.h"
 #include "../lib/string_parser.h"
+#include "../spike-top/sim_lib.h"
 
 static void help(int exit_code = 1)
 {
@@ -476,7 +476,7 @@ int main(int argc, char** argv)
   parser.option(0, "kernel-info", 1, [&](const char *s){
     std::string info = s;
     std::vector<std::string> paths;
-    Profiler::split(paths, info, ',');
+    split(paths, info, ',');
     assert(paths.size() == 2);
     objdump_paths.push_back({KERNEL, paths[0]});
     dwarf_paths.push_back({KERNEL, paths[1]});
@@ -484,19 +484,19 @@ int main(int argc, char** argv)
   parser.option(0, "user-info", 1, [&](const char *s){
     std::string all_users = s;
     std::vector<std::string> per_user;
-    Profiler::split(per_user, all_users, '+');
+    split(per_user, all_users, '+');
 
     for (std::string user : per_user) {
       std::vector<std::string> info;
-      Profiler::split(info, user, ',');
+      split(info, user, ',');
       assert(info.size() == 2);
 
       std::vector<std::string> dirs;
-      Profiler::split(dirs, info[0], '/');
+      split(dirs, info[0], '/');
       objdump_paths.push_back({dirs.back(), info[0]});
 
       dirs.clear();
-      Profiler::split(dirs, info[1], '/');
+      split(dirs, info[1], '/');
       dwarf_paths.push_back({dirs.back(), info[0]});
     }
   });
@@ -576,7 +576,7 @@ int main(int argc, char** argv)
 
   Profiler::Profiler p(objdump_paths, dwarf_paths, &cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
       log_path, dtb_enabled, dtb_file, socket, cmd_file,
-      true, prof_tracedir, callstack, proflog);
+      true, NULL, prof_tracedir, callstack, proflog);
 
   if (dump_dts) {
     printf("%s", p.get_dts());

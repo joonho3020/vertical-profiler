@@ -14,18 +14,17 @@
 #include <riscv/processor.h>
 #include <riscv/simif.h>
 #include <riscv/sim.h>
-#include <riscv/sim_lib.h>
 #include <riscv/mmu.h>
 
+#include "profiler.h"
 #include "callstack_info.h"
-#include "perfetto_trace.h"
 #include "stack_unwinder.h"
 #include "types.h"
 #include "objdump_parser.h"
-#include "thread_pool.h"
-#include "profiler.h"
 #include "perfetto_trace.h"
 #include "../lib/string_parser.h"
+#include "../spike-top/sim_lib.h"
+#include "../spike-top/processor_lib.h"
 
 // TODO : 
 // 1. Logging the outputs of the profiler is becoming slow (extra 30 second to boot linux).
@@ -87,11 +86,14 @@ Profiler::Profiler(
       bool socket_enabled,
       FILE *cmd_file,
       bool checkpoint,
+      const char* rtl_tracefile_name,
       std::string prof_tracedir,
       FILE *stackfile,
       FILE *prof_logfile)
   : sim_lib_t(cfg, halted, mems, plugin_device_factories, args, dm_config,
-          log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file, checkpoint),
+          log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file, checkpoint,
+          rtl_tracefile_name,
+          false /* don't serialize_mem */),
     prof_tracedir(prof_tracedir),
     prof_logfile(prof_logfile)
 {
@@ -258,7 +260,7 @@ int Profiler::run() {
     std::string protobuf;
 
     auto ckpt_s = GET_TIME();
-    take_ckpt(protobuf);
+    serialize_proto(protobuf);
     auto ckpt_e = GET_TIME();
     MEASURE_AVG_TIME(ckpt_s, ckpt_e, ckpt_us, ckpt_cnt);
 
@@ -307,7 +309,7 @@ int Profiler::run() {
 
       trace_t rewind_trace;
       auto ld_ckpt_s = GET_TIME();
-      load_ckpt(protobuf, false);
+      deserialize_proto(protobuf);
       auto ld_ckpt_e = GET_TIME();
       MEASURE_AVG_TIME(ld_ckpt_s, ld_ckpt_e, ld_ckpt_us, ld_ckpt_cnt);
 
@@ -331,7 +333,6 @@ int Profiler::run() {
         processor_t* proc = get_core(0);
         state_t* state = proc->get_state();
         addr_t va = state->pc;
-        addr_t asid = proc->get_asid();
 
         for (auto& sa : func_pc_prof_start) {
           if (unlikely(sa == va)) {
@@ -443,7 +444,7 @@ void Profiler::process_callstack() {
       split(words, line);
       uint64_t addr = std::stoull(words[0], &sz, 16);
       uint64_t asid = std::stoull(words[1], &sz, 10);
-      uint64_t prv  = std::stoull(words[2], &sz, 10);
+/* uint64_t prv  = std::stoull(words[2], &sz, 10); */
 /* std::string prev_prv = words[3]; // TODO don't need? */
       words.clear();
 

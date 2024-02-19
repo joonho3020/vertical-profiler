@@ -11,15 +11,11 @@
 
 #include <cstdint>
 #include <fstream>
-#include <map>
-#include <set>
 #include <iostream>
 #include <memory>
 #include <sstream>
-#include <climits>
 #include <cstdlib>
 #include <cassert>
-#include <signal.h>
 #include <inttypes.h>
 #include <string>
 #include <unistd.h>
@@ -28,9 +24,7 @@
 
 #include "ganged_devices.h"
 #include "sim_lib.h"
-#include "processor_lib.h"
 #include "../lib/string_parser.h"
-
 
 extern device_factory_t* clint_factory;
 extern device_factory_t* plic_factory;
@@ -45,10 +39,12 @@ sim_lib_t::sim_lib_t(const cfg_t *cfg, bool halted,
         bool socket_enabled,
         FILE *cmd_file,
         bool checkpoint,
-        const char* rtl_tracefile_name)
+        const char* rtl_tracefile_name,
+        bool serialize_mem)
   : sim_t(cfg, halted, mems, plugin_device_factories, args, dm_config,
           log_path, dtb_enabled, dtb_file, socket_enabled, true, cmd_file),
-    rtl_tracefile_name(rtl_tracefile_name)
+    rtl_tracefile_name(rtl_tracefile_name),
+    serialize_mem(serialize_mem)
 {
   auto enq_func = [](std::queue<reg_t>* q, uint64_t x) { q->push(x); };
   fromhost_callback = std::bind(enq_func, &fromhost_queue, std::placeholders::_1);
@@ -310,6 +306,7 @@ void sim_lib_t::init() {
 
 void sim_lib_t::run_for(uint64_t steps) {
   uint64_t tot_step = 0;
+  target_trace.clear();
 
   while (target_running() && tot_step < steps) {
     uint64_t tohost_req = check_tohost_req();
@@ -320,7 +317,10 @@ void sim_lib_t::run_for(uint64_t steps) {
       uint64_t dev_step = std::max((uint64_t)1, cur_step / INSNS_PER_RTC_TICK);
       step_target(cur_step, dev_step);
       for (int i = 0, nprocs = (int)procs.size(); i < nprocs; i++) {
-        tot_step += cur_step;
+        auto plib = dynamic_cast<processor_lib_t*>(procs[i]);
+        auto pst = plib->step_trace();
+        target_trace.insert(target_trace.end(), pst.begin(), pst.end());
+        tot_step += pst.size();
       }
     }
     send_fromhost_req();
@@ -403,10 +403,10 @@ void sim_lib_t::send_fromhost_req() {
 }
 
 void sim_lib_t::serialize_proto(std::string& msg) {
-  printf("serialize_proto\n");
+/* printf("serialize_proto\n"); */
   serialize_called = true;
 
-  google::protobuf::Arena* arena = new google::protobuf::Arena();
+  arena = new google::protobuf::Arena();
   SimState* sim_proto = google::protobuf::Arena::Create<SimState>(arena);
 
   for (int i = 0, cnt = (int)procs.size(); i < cnt; i++) {
@@ -416,7 +416,7 @@ void sim_lib_t::serialize_proto(std::string& msg) {
 
   // CLINT
   CLINT* clint_proto = google::protobuf::Arena::Create<CLINT>(arena);
-  printf("CLINT mtime: %" PRIu64 "\n", clint->get_mtime());
+/* printf("CLINT mtime: %" PRIu64 "\n", clint->get_mtime()); */
   clint_proto->set_msg_mtime(clint->get_mtime());
   for (uint64_t i = 0, cnt = (uint64_t)procs.size(); i < cnt; i++) {
     UInt64Map* kv = clint_proto->add_msg_mtimecmp();
@@ -508,14 +508,14 @@ void sim_lib_t::deserialize_proto(std::string& msg) {
 
   // CLINT
   const CLINT& clint_proto = sim_proto->msg_clint();
-  printf("CLINT mtime: %" PRIu64 " -> %" PRIu64 "\n", clint->get_mtime(), clint_proto.msg_mtime());
+/* printf("CLINT mtime: %" PRIu64 " -> %" PRIu64 "\n", clint->get_mtime(), clint_proto.msg_mtime()); */
   clint->set_mtime(clint_proto.msg_mtime());
   assert(clint->mtimecmp.size() == clint_proto.msg_mtimecmp_size());
   clint->clear_mtimecmp();
 
   for (int i = 0, cnt = clint_proto.msg_mtimecmp_size(); i < cnt; i++) {
     const UInt64Map& kv = clint_proto.msg_mtimecmp(i);
-    printf("CLINT mtimecmp: %d -> %" PRIu64 " %" PRIu64 " -> %" PRIu64 "\n", i, kv.msg_k(), clint->get_mtimecmp(i), kv.msg_v());
+/* printf("CLINT mtimecmp: %d -> %" PRIu64 " %" PRIu64 " -> %" PRIu64 "\n", i, kv.msg_k(), clint->get_mtimecmp(i), kv.msg_v()); */
     clint->set_mtimecmp(kv.msg_k(), kv.msg_v());
   }
 

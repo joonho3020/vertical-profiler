@@ -5,6 +5,22 @@
 #include <google/protobuf/arena.h>
 #include "arch-state.pb.h"
 
+#define PC_SERIALIZE_BEFORE 3
+#define PC_SERIALIZE_AFTER 5
+#define invalid_pc(pc) ((pc) & 1)
+
+struct trace_entry_t {
+  reg_t pc;
+  reg_t asid;
+  reg_t prv;
+  reg_t prev_prv;
+  insn_t insn;
+};
+
+typedef std::vector<trace_entry_t> trace_t;
+
+class wait_for_interrupt_t {};
+
 class processor_lib_t : public processor_t
 {
 public:
@@ -13,6 +29,12 @@ public:
               FILE *log_file, std::ostream& sout_); // because of command line option --log and -s we need both
   ~processor_lib_t();
 
+  reg_t get_asid();
+  trace_t& step_trace() { return trace; }
+  virtual void step(size_t n) override;
+
+private:
+  trace_t trace;
 
 public:
   google::protobuf::Arena* arena;

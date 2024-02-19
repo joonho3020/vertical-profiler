@@ -16,9 +16,9 @@
 #include <string>
 
 #include <riscv/cfg.h>
-#include <riscv/processor.h>
 #include "types.h"
 #include "perfetto_trace.h"
+#include "../spike-top/processor_lib.h"
 
 namespace Profiler {
 

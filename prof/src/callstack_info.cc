@@ -10,6 +10,7 @@
 #include "profiler.h"
 #include "types.h"
 #include "perfetto_trace.h"
+#include "../spike-top/processor_lib.h"
 
 namespace Profiler {
 
@@ -40,13 +41,13 @@ KernelFunction::KernelFunction(std::string name)
 {
 }
 
-addr_t KernelFunction::get_current_ptr(processor_t* proc) {
+addr_t KernelFunction::get_current_ptr(processor_lib_t* proc) {
   state_t* s = proc->get_state();
   unsigned int tidx = riscv_abi_ireg["tp"];
   return s->XPR[tidx];
 }
 
-pid_t KernelFunction::get_current_pid(processor_t* proc) {
+pid_t KernelFunction::get_current_pid(processor_lib_t* proc) {
   mmu_t* mmu = proc->get_mmu();
 
   addr_t curr_ptr = get_current_ptr(proc);
@@ -62,7 +63,7 @@ KF_do_execveat_common::KF_do_execveat_common(std::string name)
 
 OptCallStackInfo KF_do_execveat_common::update_profiler(Profiler *p, trace_t& t) {
   // TODO : multicore support
-  processor_t* proc = p->get_core(0);
+  processor_lib_t* proc = p->get_core(0);
 
   // map current asid with binary name
   std::string filepath = find_exec_syscall_filepath(p, proc);
@@ -71,7 +72,7 @@ OptCallStackInfo KF_do_execveat_common::update_profiler(Profiler *p, trace_t& t)
 
 std::string KF_do_execveat_common::find_exec_syscall_filepath(
     Profiler* p,
-    processor_t* proc)
+    processor_lib_t* proc)
 {
   ObjdumpParser *obj = p->get_objdump_parser(KERNEL);
   std::string farg_abi_reg = obj->func_args_reg(k_do_execveat_common,
@@ -129,7 +130,7 @@ KF_set_mm_asid::KF_set_mm_asid(std::string name)
 }
 
 OptCallStackInfo KF_set_mm_asid::update_profiler(Profiler *p, trace_t& t) {
-  processor_t* proc = p->get_core(0);
+  processor_lib_t* proc = p->get_core(0);
   pid_t pid = get_current_pid(proc);
   std::vector<CallStackInfo>& cs = p->get_callstack(pid);
 
@@ -172,7 +173,7 @@ KF_kernel_clone::KF_kernel_clone(std::string name)
 }
 
 OptCallStackInfo KF_kernel_clone::update_profiler(Profiler *p, trace_t& t) {
-  processor_t* proc = p->get_core(0);
+  processor_lib_t* proc = p->get_core(0);
   pid_t newpid = get_forked_task_pid(p, proc);
   pid_t parpid = get_current_pid(proc);
 
@@ -196,7 +197,7 @@ OptCallStackInfo KF_kernel_clone::update_profiler(Profiler *p, trace_t& t) {
   return {};
 }
 
-pid_t KF_kernel_clone::get_forked_task_pid(Profiler* p, processor_t* proc) {
+pid_t KF_kernel_clone::get_forked_task_pid(Profiler* p, processor_lib_t* proc) {
   ObjdumpParser *obj = p->get_objdump_parser(KERNEL);
   std::string ret_reg = obj->func_ret_reg(k_kernel_clone);
   unsigned int reg_idx = riscv_abi_ireg[ret_reg];
@@ -213,12 +214,12 @@ KF_pick_next_task_fair::KF_pick_next_task_fair(std::string name)
 }
 
 OptCallStackInfo KF_pick_next_task_fair::update_profiler(Profiler *p, trace_t& t) {
-  processor_t* proc = p->get_core(0);
+  processor_lib_t* proc = p->get_core(0);
   std::optional<pid_t> pid = get_pid_next_task(p, proc);
   return {};
 }
 
-std::optional<pid_t> KF_pick_next_task_fair::get_pid_next_task(Profiler *p, processor_t* proc) {
+std::optional<pid_t> KF_pick_next_task_fair::get_pid_next_task(Profiler *p, processor_lib_t* proc) {
   ObjdumpParser *obj = p->get_objdump_parser(KERNEL);
   std::string ret_reg = obj->func_ret_reg(k_pick_next_task_fair);
   unsigned int reg_idx = riscv_abi_ireg[ret_reg];
@@ -245,7 +246,7 @@ KF_finish_task_switch::KF_finish_task_switch(std::string name)
 }
 
 OptCallStackInfo KF_finish_task_switch::update_profiler(Profiler *p, trace_t& t) {
-  processor_t* proc = p->get_core(0);
+  processor_lib_t* proc = p->get_core(0);
   pid_t cur_pid  = get_current_pid(proc);
   pid_t prev_pid = get_prev_pid(p, proc);
   p->set_curpid(cur_pid);
@@ -269,7 +270,7 @@ OptCallStackInfo KF_finish_task_switch::update_profiler(Profiler *p, trace_t& t)
   return CallStackInfo(k_finish_task_switch, "");
 }
 
-pid_t KF_finish_task_switch::get_prev_pid(Profiler *p, processor_t* proc) {
+pid_t KF_finish_task_switch::get_prev_pid(Profiler *p, processor_lib_t* proc) {
   ObjdumpParser *obj = p->get_objdump_parser(KERNEL);
   std::string reg_name = obj->func_args_reg(k_finish_task_switch,
                                             k_finish_task_switch_prev_arg);

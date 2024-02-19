@@ -550,7 +550,9 @@ int main(int argc, char** argv)
 
   sim_lib_t s(&cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
       log_path, dtb_enabled, dtb_file, socket, cmd_file,
-      checkpoint, trace_file);
+      checkpoint, trace_file,
+      rtl_lockstep /* serialize mem only when running in rtl lockstep mode */
+      );
 
   printf("isa: %s priv: %s\n", cfg.isa, cfg.priv);
   if (dump_dts) {

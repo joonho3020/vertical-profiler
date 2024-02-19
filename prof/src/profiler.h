@@ -11,9 +11,9 @@
 #include <riscv/processor.h>
 #include <riscv/simif.h>
 #include <riscv/sim.h>
-#include <riscv/sim_lib.h>
 #include <riscv/processor.h>
 
+#include "../spike-top/sim_lib.h"
 #include "stack_unwinder.h"
 #include "types.h"
 #include "objdump_parser.h"
@@ -39,6 +39,7 @@ public:
       bool socket_enabled,
       FILE *cmd_file,
       bool checkpoint,
+      const char* rtl_tracefile_name,
       std::string prof_tracedir,
       FILE *stackfile,
       FILE *proflogfile);

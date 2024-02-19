@@ -22,6 +22,7 @@
 #include <sys/types.h>
 
 #include "ganged_devices.h"
+#include "processor_lib.h"
 
 typedef std::map<char*, char*> pagemap;
 typedef std::vector<char*>     pagepool;
@@ -38,7 +39,8 @@ public:
         bool socket_enabled,
         FILE *cmd_file,
         bool checkpoint, // needed for command line option --cmd
-        const char* rtl_tracefile_name);
+        const char* rtl_tracefile_name,
+        bool serialize_mem);
   ~sim_lib_t();
 
 
@@ -75,10 +77,19 @@ public:
   // RTL lockstep stuff
   const char* rtl_tracefile_name;
 
+  trace_t& run_trace() { return target_trace; }
+  processor_lib_t* get_core(size_t i) { 
+    return dynamic_cast<processor_lib_t*>(procs.at(i)); 
+  }
+
 private:
   friend class processor_t;
   friend class mmu_t;
   friend class sim_t;
+
+  trace_t target_trace;
+
+  google::protobuf::Arena* arena;
 
   std::queue<reg_t> fromhost_queue;
   std::function<void(reg_t)> fromhost_callback;

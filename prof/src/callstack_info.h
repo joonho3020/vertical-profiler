@@ -7,6 +7,7 @@
 #include <riscv/processor.h>
 
 #include "types.h"
+#include "../spike-top/processor_lib.h"
 
 namespace Profiler {
 
@@ -45,8 +46,8 @@ public:
   virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) = 0;
 
 protected:
-  addr_t get_current_ptr(processor_t* proc);
-  pid_t  get_current_pid(processor_t* proc);
+  addr_t get_current_ptr(processor_lib_t* proc);
+  pid_t  get_current_pid(processor_lib_t* proc);
 };
 
 
@@ -56,7 +57,7 @@ public:
   virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) override;
 
 private:
-  std::string find_exec_syscall_filepath(Profiler *p, processor_t *proc);
+  std::string find_exec_syscall_filepath(Profiler *p, processor_lib_t *proc);
   const addr_t MAX_FILENAME_SIZE = 200;
 };
 
@@ -76,7 +77,7 @@ public:
   virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) override;
 
 private:
-  pid_t get_forked_task_pid(Profiler* p, processor_t* proc);
+  pid_t get_forked_task_pid(Profiler* p, processor_lib_t* proc);
 };
 
 class KF_pick_next_task_fair : public KernelFunction {
@@ -85,7 +86,7 @@ public:
   virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) override;
 
 private:
-  std::optional<pid_t> get_pid_next_task(Profiler *p, processor_t* proc);
+  std::optional<pid_t> get_pid_next_task(Profiler *p, processor_lib_t* proc);
 };
 
 class KF_finish_task_switch : public KernelFunction {
@@ -94,7 +95,7 @@ public:
   virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) override;
 
 private:
-  pid_t get_prev_pid(Profiler *p, processor_t* proc);
+  pid_t get_prev_pid(Profiler *p, processor_lib_t* proc);
 };
 
 } // namespace Profiler

@@ -1,6 +1,6 @@
 #include <cstdint>
 #include <sys/time.h>
-#include <inttypes.h>
+#include <cassert>
 
 #include <riscv/devices.h>
 #include <riscv/encoding.h>

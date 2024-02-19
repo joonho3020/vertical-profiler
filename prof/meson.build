@@ -71,29 +71,29 @@ executable('spike_lib_main',
     protobuf_hdr_incs
   ])
 
-# executable('profiler_main',
-# [
-# 'src/profiler_main.cc',
-# 'src/profiler.cc',
-# 'src/thread_pool.cc',
-# 'src/disasm.cc',
-# 'src/callstack_info.cc',
-# 'src/stack_unwinder.cc',
-# 'src/perfetto_trace.cc'
-# ],
-# link_with : [
-# tracerv_lib,
-# string_parser_lib,
-# objdump_parser_lib,
-# spike_top_lib
-# ],
-# dependencies : [
-# lib_deps, spike_lib_deps
-# ],
-# include_directories : [
-# spike_hdr_incs,
-# protobuf_hdr_incs
-# ])
+executable('profiler_main',
+  [
+    'src/profiler_main.cc',
+    'src/profiler.cc',
+    'src/thread_pool.cc',
+    'src/disasm.cc',
+    'src/callstack_info.cc',
+    'src/stack_unwinder.cc',
+    'src/perfetto_trace.cc'
+  ],
+  link_with : [
+    tracerv_lib,
+    string_parser_lib,
+    objdump_parser_lib,
+    spike_top_lib
+  ],
+  dependencies : [
+    lib_deps, spike_lib_deps
+  ],
+  include_directories : [
+    spike_hdr_incs,
+    protobuf_hdr_incs
+  ])
 
 executable('stack_unwinder_main',
   [
