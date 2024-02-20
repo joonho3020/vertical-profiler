@@ -121,11 +121,11 @@ Profiler::Profiler(
   Function* f3 = new KF_kernel_clone(k_kernel_clone);
   this->add_kernel_func_to_profile(f3, true);
 
-  Function* f4 = new KF_pick_next_task_fair(k_pick_next_task_fair);
-  this->add_kernel_func_to_profile(f4, true);
+/* Function* f4 = new KF_pick_next_task_fair(k_pick_next_task_fair); */
+/* this->add_kernel_func_to_profile(f4, true); */
 
-  Function* f5 = new KF_finish_task_switch(k_finish_task_switch);
-  this->add_kernel_func_to_profile(f5, false);
+/* Function* f5 = new KF_finish_task_switch(k_finish_task_switch); */
+/* this->add_kernel_func_to_profile(f5, false); */
 }
 
 Profiler::~Profiler() {
