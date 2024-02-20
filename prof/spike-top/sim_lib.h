@@ -24,6 +24,10 @@
 #include "ganged_devices.h"
 #include "processor_lib.h"
 
+
+#define DEBUG_MEM
+
+
 typedef std::map<char*, char*> pagemap;
 typedef std::vector<char*>     pagepool;
 
@@ -66,10 +70,12 @@ public:
   void serialize_proto(std::string& msg);
   void deserialize_proto(std::string& msg);
 
-  bool serialize_mem = true; // TODO : Add commandline option
+  bool serialize_mem = true;
   bool serialize_called = false;
 
+#ifdef DEBUG_MEM
   std::map<reg_t, char*> all_mm_ckpt;
+#endif
   std::set<reg_t> ckpt_ppn;
   pagepool ckpt_mempool;
   pagemap mm_ckpt; // host addr -> ckpt addr

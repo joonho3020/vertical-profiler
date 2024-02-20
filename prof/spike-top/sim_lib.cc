@@ -24,6 +24,7 @@
 
 #include "ganged_devices.h"
 #include "sim_lib.h"
+#include "mmu_lib.h"
 #include "../lib/string_parser.h"
 
 extern device_factory_t* clint_factory;
@@ -81,7 +82,7 @@ sim_lib_t::sim_lib_t(const cfg_t *cfg, bool halted,
   }
 #endif
 
-  debug_mmu = new mmu_t(this, cfg->endianness, NULL);
+  debug_mmu = new mmu_lib_t(this, cfg->endianness, NULL);
 
   for (size_t i = 0; i < cfg->nprocs(); i++) {
     procs[i] = new processor_lib_t(&isa, cfg, this, cfg->hartids[i], halted,
@@ -403,7 +404,6 @@ void sim_lib_t::send_fromhost_req() {
 }
 
 void sim_lib_t::serialize_proto(std::string& msg) {
-/* printf("serialize_proto\n"); */
   serialize_called = true;
 
   arena = new google::protobuf::Arena();
@@ -473,6 +473,17 @@ void sim_lib_t::serialize_proto(std::string& msg) {
       ckpt_mempool.push_back(page.second);
     }
     mm_ckpt.clear();
+#ifdef DEBUG_MEM
+  for (auto& addr_mem: mems) {
+    auto mem = (mem_t*)addr_mem.second;
+    std::map<reg_t, char*>& spm = mem->get_sparse_memory_map();
+    for (auto& page : spm) {
+      char* buf = (char*)calloc(PGSIZE, 1);
+      memcpy(buf, page.second, PGSIZE);
+      all_mm_ckpt[page.first] = buf;
+    }
+  }
+#endif
   } else {
     for (auto& addr_mem : mems) {
       auto mem = (mem_t*)addr_mem.second;
@@ -494,8 +505,6 @@ void sim_lib_t::serialize_proto(std::string& msg) {
 }
 
 void sim_lib_t::deserialize_proto(std::string& msg) {
-  printf("deserialzing protobuf message\n");
-
   serialize_called = false;
   google::protobuf::Arena* arena = new google::protobuf::Arena();
   SimState* sim_proto = google::protobuf::Arena::Create<SimState>(arena);
@@ -577,6 +586,27 @@ void sim_lib_t::deserialize_proto(std::string& msg) {
         free(spm[x]);
         spm.erase(x);
       }
+#ifdef DEBUG_MEM
+      bool found_mismatch = false;
+      for (auto& addr_mem : mems) {
+        auto mem = (mem_t*)addr_mem.second;
+        std::map<reg_t, char*>& spm = mem->get_sparse_memory_map();
+        printf("spm after restore size: %u, ckpt size: %u\n",
+            spm.size(), all_mm_ckpt.size());
+        for (auto& page : spm) {
+          char* ref_page = all_mm_ckpt[page.first];
+          for (int  i = 0; i < PGSIZE; i++) {
+            if (ref_page[i] != page.second[i]) {
+              printf("Mismatch PPN: 0x%" PRIx64 " haddr: 0x%" PRIx64 " byte: %d got %d expect %d\n",
+                  page.first, (uint64_t)page.second, i, page.second[i], ref_page[i]);
+              found_mismatch = true;
+              exit(1);
+            }
+          }
+        }
+      }
+      if (found_mismatch) exit(1);
+#endif
     } else {
       for (auto& page: spm) {
         free(page.second);

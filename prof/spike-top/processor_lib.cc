@@ -4,6 +4,7 @@
 #include <riscv/disasm.h>
 #include <google/protobuf/arena.h>
 #include "processor_lib.h"
+#include "mmu_lib.h"
 
 static void commit_log_reset(processor_t* p)
 {
@@ -199,6 +200,8 @@ processor_lib_t::processor_lib_t(const isa_parser_t *isa, const cfg_t* cfg,
               FILE *log_file, std::ostream& sout_)
   : processor_t(isa, cfg, sim, id, halt_on_reset, log_file, sout_)
 {
+  delete mmu;
+  mmu = new mmu_lib_t(sim, cfg->endianness, this);
 }
 
 processor_lib_t::~processor_lib_t() {

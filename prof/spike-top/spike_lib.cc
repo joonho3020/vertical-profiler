@@ -81,8 +81,7 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --dm-no-halt-groups   Debug module won't support halt groups\n");
   fprintf(stderr, "  --dm-no-impebreak     Debug module won't support implicit ebreak in program buffer\n");
   fprintf(stderr, "  --blocksz=<size>      Cache block size (B) for CMO operations(powers of 2) [default 64]\n");
-  fprintf(stderr, "  --ckpt-mode=<N>       0: run w/o ckpt (default), 1: ckpt at ckpt-step & reload, 2: load ckpt from proto-json and run\n");
-  fprintf(stderr, "  --ckpt-step=<size>    Steps to run before serialize & reload\n");
+  fprintf(stderr, "  --ckpt-step=<size>    Steps to run before serialize & reload (valid only when > 0)\n");
   fprintf(stderr, "  --rtl-trace=<name>    Read trace from file\n");
 
   exit(exit_code);
@@ -348,7 +347,6 @@ int main(int argc, char** argv)
   bool use_rbb = false;
   unsigned dmi_rti = 0;
   reg_t blocksz = 64;
-  int ckpt_mode = 0;
   uint64_t ckpt_step = 0;
   debug_module_config_t dm_config;
   cfg_arg_t<size_t> nprocs(1);
@@ -465,9 +463,6 @@ int main(int argc, char** argv)
       exit(-1);
     }
   });
-  parser.option(0, "ckpt-mode", 1, [&](const char* s) {
-      ckpt_mode = strtoull(s, 0, 0);
-  });
   parser.option(0, "ckpt-step", 1, [&](const char* s) {
       ckpt_step = strtoull(s, 0, 0);
   });
@@ -545,7 +540,7 @@ int main(int argc, char** argv)
     cfg.hartids = default_hartids;
   }
 
-  bool checkpoint = (ckpt_mode != 0);
+  bool checkpoint = (ckpt_step != 0);
   cfg.handle_time_by_xcpt = rtl_lockstep;
 
   sim_lib_t s(&cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
@@ -592,8 +587,12 @@ int main(int argc, char** argv)
     std::string proto;
     s.run_for(ckpt_step);
     s.serialize_proto(proto);
+    fprintf(stdout, "======= serialization done   =======\n");
+    fflush(stdout);
     s.run_for(ckpt_step);
     s.deserialize_proto(proto);
+    fprintf(stdout, "======= deserialization done =======\n");
+    fflush(stdout);
     s.run();
   }
 
