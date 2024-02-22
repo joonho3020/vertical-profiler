@@ -25,7 +25,8 @@
 #include "processor_lib.h"
 
 
-#define DEBUG_MEM
+/* #define DEBUG_MEM */
+/* #define DEBUG_PROTOBUF */
 
 
 typedef std::map<char*, char*> pagemap;

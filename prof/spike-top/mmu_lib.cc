@@ -26,7 +26,6 @@ void mmu_lib_t::take_checkpoint(char* host_offset) {
       mm_ckpt[host_offset] = mempool.back();
       mempool.pop_back();
     }
-/* std::cout << std::hex << "0x" << (uint64_t)host_offset << std::endl; */
     memcpy(mm_ckpt[host_offset], (void*)host_offset, PGSIZE);
   }
 }

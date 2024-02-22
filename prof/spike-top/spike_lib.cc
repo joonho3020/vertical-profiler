@@ -589,7 +589,7 @@ int main(int argc, char** argv)
     s.serialize_proto(proto);
     fprintf(stdout, "======= serialization done   =======\n");
     fflush(stdout);
-    s.run_for(ckpt_step);
+/* s.run_for(ckpt_step); */
     s.deserialize_proto(proto);
     fprintf(stdout, "======= deserialization done =======\n");
     fflush(stdout);

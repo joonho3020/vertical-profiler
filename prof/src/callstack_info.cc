@@ -154,6 +154,8 @@ OptCallStackInfo KF_set_mm_asid::update_profiler(Profiler *p, trace_t& t) {
     if (pid != p->get_curpid()) {
       pexit("%d Prof internal pid: %u, spike pid: %u\n", __LINE__, p->get_curpid(), pid);
     }
+  } else {
+    pprintf("set_mm_asid not called by exec\n");
   }
   return CallStackInfo(k_set_mm_asid, "");
 }

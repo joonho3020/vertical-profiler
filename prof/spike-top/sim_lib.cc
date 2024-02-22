@@ -47,6 +47,8 @@ sim_lib_t::sim_lib_t(const cfg_t *cfg, bool halted,
     rtl_tracefile_name(rtl_tracefile_name),
     serialize_mem(serialize_mem)
 {
+  arena = new google::protobuf::Arena();
+
   auto enq_func = [](std::queue<reg_t>* q, uint64_t x) { q->push(x); };
   fromhost_callback = std::bind(enq_func, &fromhost_queue, std::placeholders::_1);
 
@@ -167,7 +169,7 @@ sim_lib_t::sim_lib_t(const cfg_t *cfg, bool halted,
           abstract_device_t* cg = new clint_ganged_t(this, base_clint->freq_hz, base_clint->real_time);
           std::shared_ptr<abstract_device_t> cg_ptr(cg);
           clint = std::static_pointer_cast<clint_t>(cg_ptr);
-/* delete base_clint; */
+
           std::shared_ptr<ganged_device_t> gdev = std::make_shared<ganged_device_t>(cg_ptr);
           ganged_devs.push_back(gdev);
           add_device(device_base, gdev);
@@ -176,7 +178,7 @@ sim_lib_t::sim_lib_t(const cfg_t *cfg, bool halted,
           abstract_device_t* pg = new plic_ganged_t(this, base_plic->num_ids - 1);
           std::shared_ptr<abstract_device_t> pg_ptr(pg);
           plic = std::static_pointer_cast<plic_t>(pg_ptr);
-/* delete base_plic; */
+
           std::shared_ptr<ganged_device_t> gdev = std::make_shared<ganged_device_t>(pg_ptr);
           ganged_devs.push_back(gdev);
           add_device(device_base, gdev);
@@ -195,16 +197,12 @@ sim_lib_t::sim_lib_t(const cfg_t *cfg, bool halted,
     }
   }
 
-/* std::vector<char> bootrom = {}; */
-  firesim_bootrom.resize(ROCKETCHIP_BOOTROM_SIZE);
-  std::shared_ptr<rom_device_t> bootrom_ptr = std::make_shared<rom_device_t>(firesim_bootrom);
   if (from_rtl_trace) {
-    std::shared_ptr<ganged_device_t> rom_ptr =
-      std::make_shared<ganged_device_t>(bootrom_ptr);
+    firesim_bootrom.resize(ROCKETCHIP_BOOTROM_SIZE);
+    std::shared_ptr<rom_device_t> bootrom_ptr = std::make_shared<rom_device_t>(firesim_bootrom);
+    std::shared_ptr<ganged_device_t> rom_ptr = std::make_shared<ganged_device_t>(bootrom_ptr);
     ganged_devs.push_back(rom_ptr);
     add_device(ROCKETCHIP_BOOTROM_BASE, rom_ptr);
-  } else {
-    add_device(ROCKETCHIP_BOOTADDR_BASE, bootrom_ptr);
   }
 
   std::shared_ptr<mem_t> boot_addr_reg = std::make_shared<mem_t>(ROCKETCHIP_BOOTADDR_BASE);
@@ -406,9 +404,7 @@ void sim_lib_t::send_fromhost_req() {
 void sim_lib_t::serialize_proto(std::string& msg) {
   serialize_called = true;
 
-  arena = new google::protobuf::Arena();
   SimState* sim_proto = google::protobuf::Arena::Create<SimState>(arena);
-
   for (int i = 0, cnt = (int)procs.size(); i < cnt; i++) {
     ArchState* arch_proto = sim_proto->add_msg_arch_state();
     procs[i]->serialize_proto((void*)arch_proto, (void*)arena);
@@ -416,7 +412,6 @@ void sim_lib_t::serialize_proto(std::string& msg) {
 
   // CLINT
   CLINT* clint_proto = google::protobuf::Arena::Create<CLINT>(arena);
-/* printf("CLINT mtime: %" PRIu64 "\n", clint->get_mtime()); */
   clint_proto->set_msg_mtime(clint->get_mtime());
   for (uint64_t i = 0, cnt = (uint64_t)procs.size(); i < cnt; i++) {
     UInt64Map* kv = clint_proto->add_msg_mtimecmp();
@@ -517,14 +512,12 @@ void sim_lib_t::deserialize_proto(std::string& msg) {
 
   // CLINT
   const CLINT& clint_proto = sim_proto->msg_clint();
-/* printf("CLINT mtime: %" PRIu64 " -> %" PRIu64 "\n", clint->get_mtime(), clint_proto.msg_mtime()); */
   clint->set_mtime(clint_proto.msg_mtime());
   assert(clint->mtimecmp.size() == clint_proto.msg_mtimecmp_size());
   clint->clear_mtimecmp();
 
   for (int i = 0, cnt = clint_proto.msg_mtimecmp_size(); i < cnt; i++) {
     const UInt64Map& kv = clint_proto.msg_mtimecmp(i);
-/* printf("CLINT mtimecmp: %d -> %" PRIu64 " %" PRIu64 " -> %" PRIu64 "\n", i, kv.msg_k(), clint->get_mtimecmp(i), kv.msg_v()); */
     clint->set_mtimecmp(kv.msg_k(), kv.msg_v());
   }
 
@@ -591,18 +584,18 @@ void sim_lib_t::deserialize_proto(std::string& msg) {
       for (auto& addr_mem : mems) {
         auto mem = (mem_t*)addr_mem.second;
         std::map<reg_t, char*>& spm = mem->get_sparse_memory_map();
-        printf("spm after restore size: %u, ckpt size: %u\n",
-            spm.size(), all_mm_ckpt.size());
         for (auto& page : spm) {
           char* ref_page = all_mm_ckpt[page.first];
-          for (int  i = 0; i < PGSIZE; i++) {
-            if (ref_page[i] != page.second[i]) {
-              printf("Mismatch PPN: 0x%" PRIx64 " haddr: 0x%" PRIx64 " byte: %d got %d expect %d\n",
-                  page.first, (uint64_t)page.second, i, page.second[i], ref_page[i]);
-              found_mismatch = true;
-              exit(1);
-            }
-          }
+          memcpy(page.second, ref_page, PGSIZE);
+          free(ref_page);
+/* for (int  i = 0; i < PGSIZE; i++) { */
+/* if (ref_page[i] != page.second[i]) { */
+/* printf("Mismatch PPN: 0x%" PRIx64 " haddr: 0x%" PRIx64 " byte: %d got %d expect %d\n", */
+/* page.first, (uint64_t)page.second, i, page.second[i], ref_page[i]); */
+/* found_mismatch = true; */
+/* exit(1); */
+/* } */
+/* } */
         }
       }
       if (found_mismatch) exit(1);

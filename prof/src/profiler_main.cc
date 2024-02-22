@@ -556,6 +556,8 @@ int main(int argc, char** argv)
     }
     cfg.hartids = default_hartids;
   }
+  bool rtl_lockstep = false;
+  cfg.handle_time_by_xcpt = rtl_lockstep;
 
 
   std::string prof_outdir_cpp = std::string(prof_outdir);
