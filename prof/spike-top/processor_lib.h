@@ -102,6 +102,7 @@ public:
   void set_stimecmp_csr_from_proto(stimecmp_csr_t& csr, const StimecmpCSR& proto);
 
   void deserialize_proto(void* aproto);
+  void print_state();
 };
 
 

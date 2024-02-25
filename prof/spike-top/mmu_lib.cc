@@ -42,7 +42,9 @@ void mmu_lib_t::store_slow_path_intrapage(reg_t len,
     if (actually_store) {
       char* host_offset = tlb_data[vpn % TLB_ENTRIES].host_offset;
       auto host_addr = host_offset + addr;
+#ifndef DEBUG_MEM
       if (inplace_ckpt) take_checkpoint(host_offset);
+#endif
       memcpy(host_addr, bytes, len);
     }
     return;
@@ -51,11 +53,13 @@ void mmu_lib_t::store_slow_path_intrapage(reg_t len,
   reg_t paddr = translate(access_info, len);
   if (actually_store) {
     if (auto host_addr = sim->addr_to_mem(paddr)) {
+#ifndef DEBUG_MEM
       if (inplace_ckpt) {
         reg_t pgoffset = paddr % PGSIZE;
         char* host_offset = host_addr - pgoffset;
         take_checkpoint(host_offset);
       }
+#endif
       memcpy(host_addr, bytes, len);
       if (tracer.interested_in_range(paddr, paddr + PGSIZE, STORE))
         tracer.trace(paddr, len, STORE);

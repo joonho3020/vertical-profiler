@@ -402,6 +402,11 @@ void sim_lib_t::send_fromhost_req() {
 }
 
 void sim_lib_t::serialize_proto(std::string& msg) {
+#ifdef DEBUG_PROTOBUF
+  printf("serializing\n");
+  this->print_state();
+#endif
+
   serialize_called = true;
 
   SimState* sim_proto = google::protobuf::Arena::Create<SimState>(arena);
@@ -422,7 +427,7 @@ void sim_lib_t::serialize_proto(std::string& msg) {
 
   // PLIC
   PLIC* plic_proto = google::protobuf::Arena::Create<PLIC>(arena);
-  auto plic_contexts = plic->get_contexts();
+  auto& plic_contexts = plic->get_contexts();
   for (auto& pc : plic_contexts) {
     PLICContext* ctx_proto = plic_proto->add_msg_contexts();
     ctx_proto->set_msg_priority_threshold(pc.priority_threshold);
@@ -456,6 +461,7 @@ void sim_lib_t::serialize_proto(std::string& msg) {
   debug_mmu->flush_tlb();
 
   if (!serialize_mem) {
+#ifndef DEBUG_MEM
     ckpt_ppn.clear();
     for (auto& addr_mem : mems) {
       auto mem = (mem_t*)addr_mem.second;
@@ -468,16 +474,21 @@ void sim_lib_t::serialize_proto(std::string& msg) {
       ckpt_mempool.push_back(page.second);
     }
     mm_ckpt.clear();
-#ifdef DEBUG_MEM
-  for (auto& addr_mem: mems) {
-    auto mem = (mem_t*)addr_mem.second;
-    std::map<reg_t, char*>& spm = mem->get_sparse_memory_map();
-    for (auto& page : spm) {
-      char* buf = (char*)calloc(PGSIZE, 1);
-      memcpy(buf, page.second, PGSIZE);
-      all_mm_ckpt[page.first] = buf;
+#else
+    for (auto& page : all_mm_ckpt) {
+      free(page.second);
     }
-  }
+    all_mm_ckpt.clear();
+
+    for (auto& addr_mem: mems) {
+      auto mem = (mem_t*)addr_mem.second;
+      std::map<reg_t, char*>& spm = mem->get_sparse_memory_map();
+      for (auto& page : spm) {
+        char* buf = (char*)malloc(PGSIZE);
+        memcpy(buf, page.second, PGSIZE);
+        all_mm_ckpt[page.first] = buf;
+      }
+    }
 #endif
   } else {
     for (auto& addr_mem : mems) {
@@ -524,7 +535,7 @@ void sim_lib_t::deserialize_proto(std::string& msg) {
   // PLIC
   const PLIC& plic_proto = sim_proto->msg_plic();
   assert(plic->get_contexts().size() == plic_proto.msg_contexts_size());
-  auto plic_contexts = plic->get_contexts();
+  auto& plic_contexts = plic->get_contexts();
   for (int i = 0, cnt = plic_proto.msg_contexts_size(); i < cnt; i++) {
     const PLICContext& pc = plic_proto.msg_contexts(i);
     plic_contexts[i].priority_threshold = pc.msg_priority_threshold();
@@ -562,6 +573,7 @@ void sim_lib_t::deserialize_proto(std::string& msg) {
     std::map<reg_t, char*>& spm = mem->get_sparse_memory_map();
 
     if (!serialize_mem) {
+#ifndef DEBUG_MEM
       std::vector<reg_t> tofree;
       for (auto& page : spm) {
         auto ppn   = page.first;
@@ -579,26 +591,23 @@ void sim_lib_t::deserialize_proto(std::string& msg) {
         free(spm[x]);
         spm.erase(x);
       }
-#ifdef DEBUG_MEM
-      bool found_mismatch = false;
+#else
       for (auto& addr_mem : mems) {
         auto mem = (mem_t*)addr_mem.second;
         std::map<reg_t, char*>& spm = mem->get_sparse_memory_map();
+        std::vector<reg_t> tofree;
         for (auto& page : spm) {
-          char* ref_page = all_mm_ckpt[page.first];
-          memcpy(page.second, ref_page, PGSIZE);
-          free(ref_page);
-/* for (int  i = 0; i < PGSIZE; i++) { */
-/* if (ref_page[i] != page.second[i]) { */
-/* printf("Mismatch PPN: 0x%" PRIx64 " haddr: 0x%" PRIx64 " byte: %d got %d expect %d\n", */
-/* page.first, (uint64_t)page.second, i, page.second[i], ref_page[i]); */
-/* found_mismatch = true; */
-/* exit(1); */
-/* } */
-/* } */
+          if (all_mm_ckpt.find(page.first) == all_mm_ckpt.end()) {
+            tofree.push_back(page.first);
+          } else {
+            memcpy(page.second, all_mm_ckpt[page.first], PGSIZE);
+          }
+        }
+        for (auto& x: tofree) {
+          free(spm[x]);
+          spm.erase(x);
         }
       }
-      if (found_mismatch) exit(1);
 #endif
     } else {
       for (auto& page: spm) {
@@ -611,7 +620,7 @@ void sim_lib_t::deserialize_proto(std::string& msg) {
         const std::string& bytes = page_proto.msg_bytes();
         assert(bytes.size() == PGSIZE);
 
-        char* res = (char*)calloc(PGSIZE, 1);
+        char* res = (char*)malloc(PGSIZE);
         if (res == nullptr)
           throw std::bad_alloc();
         memcpy((void*)res, bytes.data(), bytes.size());
@@ -624,6 +633,12 @@ void sim_lib_t::deserialize_proto(std::string& msg) {
     dev->deserialize_proto(nullptr);
   }
   google::protobuf::ShutdownProtobufLibrary();
+
+#ifdef DEBUG_PROTOBUF
+  printf("deserialize done\n");
+  this->print_state();
+#endif
+
 }
 
 
@@ -938,4 +953,35 @@ int sim_lib_t::run_from_trace(uint64_t ckpt_step) {
     words.clear();
   }
   return 0;
+}
+
+void sim_lib_t::print_state() {
+  for (int i = 0, cnt = (int)procs.size(); i < cnt; i++) {
+    printf("proc[%d] state\n", i);
+    this->get_core(i)->print_state();
+  }
+
+  printf("clint mtime 0x%" PRIx64 "\n", clint->get_mtime());
+  for (uint64_t i = 0, cnt = (uint64_t)procs.size(); i < cnt; i++) {
+    printf("mtimecmpt[%" PRIu64 "]: 0x%" PRIx64 "\n", i, clint->get_mtimecmp(i));
+  }
+
+  printf("plic state\n");
+  auto plic_contexts = plic->get_contexts();
+  for (auto& pc : plic_contexts) {
+    printf("%" PRIu8 "\n", pc.priority_threshold);
+    for (int i = 0; i < PLIC_MAX_DEVICES/32; i++) {
+      printf("e: %" PRIu32 " p: %" PRIu32 " c: %" PRIu32 "\n",
+          pc.enable[i], pc.pending[i], pc.claimed[i]);
+    }
+    for (int i = 0; i < PLIC_MAX_DEVICES; i++) {
+      printf("%" PRIu8 "\n", pc.pending_priority[i]);
+    }
+  }
+  for (int i = 0; i < PLIC_MAX_DEVICES; i++) {
+    printf("%" PRIu8 "\n", plic->get_priority(i));
+  }
+  for (int i = 0; i < PLIC_MAX_DEVICES/32; i++) {
+    printf("%" PRIu8 "\n", plic->get_level(i));
+  }
 }

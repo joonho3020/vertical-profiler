@@ -25,7 +25,7 @@
 #include "processor_lib.h"
 
 
-/* #define DEBUG_MEM */
+#define DEBUG_MEM
 /* #define DEBUG_PROTOBUF */
 
 
@@ -73,6 +73,8 @@ public:
 
   bool serialize_mem = true;
   bool serialize_called = false;
+
+  void print_state();
 
 #ifdef DEBUG_MEM
   std::map<reg_t, char*> all_mm_ckpt;

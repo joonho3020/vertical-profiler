@@ -47,7 +47,6 @@
 //    profiling run, and when it is finished, read those logs while using the
 //    profiling metadata directly (which is how the stack-unwinder is implemented)
 
-#define PROFILER_DEBUG
 
 #define GET_TIME() std::chrono::high_resolution_clock::now()
 

@@ -14,8 +14,6 @@
 
 namespace Profiler {
 
-#define PROFILER_DEBUG
-
 CallStackInfo::CallStackInfo(std::string func, std::string binary)
   : func(func), binary(binary)
 {
@@ -154,8 +152,6 @@ OptCallStackInfo KF_set_mm_asid::update_profiler(Profiler *p, trace_t& t) {
     if (pid != p->get_curpid()) {
       pexit("%d Prof internal pid: %u, spike pid: %u\n", __LINE__, p->get_curpid(), pid);
     }
-  } else {
-    pprintf("set_mm_asid not called by exec\n");
   }
   return CallStackInfo(k_set_mm_asid, "");
 }
@@ -230,13 +226,14 @@ std::optional<pid_t> KF_pick_next_task_fair::get_pid_next_task(Profiler *p, proc
   state_t* state = proc->get_state();
   addr_t next_task_ptr = state->XPR[reg_idx];
   if (next_task_ptr == 0) {
-    pprintf("CFS doesn't have a task to schedule\n");
+    pprintf("CFS doesn't have a task to schedule, ret_reg: %s\n", ret_reg.c_str());
     return {};
   } else {
     addr_t next_task_pid_addr = next_task_ptr + offsetof_task_struct_pid;
     pid_t pid = mmu->load<pid_t>(next_task_pid_addr);
 
     auto pid2bin = p->get_pid2bin_map();
+/* pprintf("CFS next_task_ptr: 0x%" PRIx64 "\n", next_task_ptr); */
 /* pprintf("CFS next task pid: %" PRIu32 " %s\n", pid, pid2bin[pid].c_str()); */
     return std::optional<pid_t>(pid);
   }

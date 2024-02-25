@@ -22,6 +22,8 @@
 #include "callstack_info.h"
 #include "perfetto_trace.h"
 
+/* #define PROFILER_DEBUG */
+
 namespace Profiler {
 
 class Profiler : public sim_lib_t {
