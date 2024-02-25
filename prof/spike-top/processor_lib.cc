@@ -1443,57 +1443,6 @@ void processor_lib_t::print_state() {
   printf("privs: %d %d %d %d %d %d\n",
       state.prv, state.prev_prv, state.prv_changed, state.v_changed, state.v, state.prev_v);
 
-  state.misa->print();
-  state.mstatus->print();
-  state.mepc->print();
-  state.mtval->print();
-
-  state.mtvec->print();
-  state.mcause->print();
-  state.minstret->print();
-  state.mcycle->print();
-
-  state.time->print();
-  for (int i = 0; i < N_HPMCOUNTERS; i++)
-    state.mevent[i]->print();
-
-  state.mie->print();
-  state.mip->print();
-  state.medeleg->print();
-  state.mcounteren->print();
-
-  state.scounteren->print();
-  state.sepc->print();
-  state.stval->print();
-  state.stvec->print();
-
-  state.satp->print();
-  state.scause->print();
-  state.mtval2->print();
-  state.mtinst->print();
-
-  state.hstatus->print();
-  state.hideleg->print();
-  state.hedeleg->print();
-  state.hcounteren->print();
-
-  state.htimedelta->print();
-  state.htval->print();
-  state.htinst->print();
-  state.hgatp->print();
-
-  state.sstatus->print();
-  state.dpc->print();
-  state.dcsr->print();
-  state.tselect->print();
-
-  state.scontext->print();
-  state.mseccfg->print();
-  for (int i = 0; i < state.max_pmp; i++)
-    state.pmpaddr[i]->print();
-
-  state.fflags->print();
-  state.frm->print();
   printf("misc: %d %d %d %" PRIx64 " %d %d\n",
       state.debug_mode, state.serialized, state.single_step,
       state.last_inst_priv, state.last_inst_xlen, state.last_inst_flen);
