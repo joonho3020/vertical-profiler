@@ -24,16 +24,16 @@ string_parser_lib = library('string_parser_lib',
   dependencies : [lib_deps])
 
 objdump_parser_lib = library('objdump_parser_lib',
-  'src/objdump_parser.cc',
+  'profiler/objdump_parser.cc',
   link_with : string_parser_lib,
   dependencies : [lib_deps])
 
 tracerv_lib = library('tracerv_lib',
   [
-    'src/tracerv_dwarf.cc',
-    'src/tracerv_elf.cc',
-    'src/tracerv_processing.cc',
-    'src/trace_tracker.cc'
+    'profiler/tracerv_dwarf.cc',
+    'profiler/tracerv_elf.cc',
+    'profiler/tracerv_processing.cc',
+    'profiler/trace_tracker.cc'
   ],
   dependencies : [lib_deps])
 
@@ -58,7 +58,7 @@ spike_top_lib = library('spike_top_lib',
 
 perfetto_trace_lib = library('perfetto_trace_lib',
   [
-    'src/perfetto_trace.cc'
+    'profiler/perfetto_trace.cc'
   ])
 
 executable('spike_lib_main',
@@ -74,13 +74,13 @@ executable('spike_lib_main',
 
 executable('profiler_main',
   [
-    'src/profiler_main.cc',
-    'src/profiler.cc',
-    'src/thread_pool.cc',
-    'src/disasm.cc',
-    'src/callstack_info.cc',
-    'src/stack_unwinder.cc',
-    'src/perfetto_trace.cc'
+    'profiler/profiler_main.cc',
+    'profiler/profiler.cc',
+    'profiler/thread_pool.cc',
+    'profiler/disasm.cc',
+    'profiler/callstack_info.cc',
+    'profiler/stack_unwinder.cc',
+    'profiler/perfetto_trace.cc'
   ],
   link_with : [
     tracerv_lib,
@@ -98,8 +98,8 @@ executable('profiler_main',
 
 executable('stack_unwinder_main',
   [
-    'src/stack_unwinder_main.cc',
-    'src/stack_unwinder.cc'
+    'profiler/stack_unwinder_main.cc',
+    'profiler/stack_unwinder.cc'
   ],
   link_with : [
     string_parser_lib,
