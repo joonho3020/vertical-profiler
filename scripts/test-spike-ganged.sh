@@ -1,7 +1,7 @@
 #!/bin/bash
 
 PROF_TOP_DIR=$(pwd)/..
-SPIKE_BUILDDIR=$PROF_TOP_DIR/prof/builddir
+SPIKE_BUILDDIR=$PROF_TOP_DIR/src/builddir
 
 cd $SPIKE_BUILDDIR
 ./spike_lib_main \

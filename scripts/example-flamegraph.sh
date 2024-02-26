@@ -6,7 +6,7 @@ set -ex
 CURDIR=$(pwd)
 
 TESTDIR=$CURDIR/../test-io/
-TRACEDIR=$CURDIR/../prof/builddir/out
+TRACEDIR=$CURDIR/../src/builddir/out
 
 TRACEFILE=$TRACEDIR/SPIKETRACE-0010430
 DWARFFILE=$TESTDIR/test-binaries/linux-workloads/linux-workloads-bin-dwarf
@@ -16,7 +16,7 @@ OUTPUT_DIR=$TESTDIR/$DATE-out
 TRACE_DIR=$OUTPUT_DIR/traces
 mkdir -p $TRACE_DIR
 
-cd $CURDIR/../prof/builddir
+cd $CURDIR/../src/builddir
 ./main $TRACEFILE $DWARFFILE > $TRACE_DIR/TRACEFILE-SPIKE
 cd ..
 fireperf/gen-all-flamegraphs-fireperf.sh  $OUTPUT_DIR
