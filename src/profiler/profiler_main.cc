@@ -2,7 +2,6 @@
 #include <riscv/cfg.h>
 #include <riscv/mmu.h>
 #include <riscv/arith.h>
-/* #include <riscv/remote_bitbang.h> */
 #include <riscv/cachesim.h>
 #include <riscv/extension.h>
 #include <fesvr/option_parser.h>
@@ -13,7 +12,6 @@
 #include <stdlib.h>
 #include <vector>
 #include <string>
-#include <memory>
 #include <fstream>
 #include <limits>
 #include <cinttypes>
@@ -576,7 +574,7 @@ int main(int argc, char** argv)
 
   std::string prof_tracedir = prof_outdir_cpp + "/traces";
 
-  Profiler::Profiler p(objdump_paths, dwarf_paths, &cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
+  profiler::profiler_t p(objdump_paths, dwarf_paths, &cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
       log_path, dtb_enabled, dtb_file, socket, cmd_file,
       true, NULL, prof_tracedir, callstack, proflog);
 

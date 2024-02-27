@@ -4,9 +4,9 @@
 #include <inttypes.h>
 #include <string>
 #include <map>
+#include <optional>
 
-namespace Profiler {
-
+namespace profiler {
 
 /////////////////////////////////////////////////////
 // MACROS
@@ -46,8 +46,8 @@ namespace Profiler {
 /////////////////////////////////////////////////////
 typedef uint64_t addr_t;
 typedef uint64_t reg_t;
-typedef uint32_t pid_t;
-
+typedef std::map<reg_t, std::string> reg2str_t;
+typedef std::optional<reg_t> optreg_t;
 
 /////////////////////////////////////////////////////
 // consts
@@ -87,6 +87,6 @@ static std::map<std::string, unsigned int> riscv_abi_ireg {
   {"t3", 28}, {"t4", 29}, {"t5" , 30}, {"t6" , 31}
 };
 
-} // namespace Profiler
+} // namespace profiler
 
 #endif //__TYPES_H__

@@ -20,10 +20,10 @@
 #include "perfetto_trace.h"
 #include "../spike-top/processor_lib.h"
 
-namespace Profiler {
+namespace profiler {
 
 template <class T, class S>
-class ThreadPool {
+class threadpool_t {
 typedef std::function<void(T, S)> job_t;
 
 public:
@@ -33,11 +33,11 @@ public:
         std::thread::hardware_concurrency()/16,
         max_concurrency);
     for (uint32_t ii = 0; ii < num_threads; ++ii) {
-      threads.emplace_back(std::thread(&ThreadPool::threadLoop, this));
+      threads.emplace_back(std::thread(&threadpool_t::threadloop, this));
     }
   }
 
-  void queueJob(const job_t& job, const T& trace, S& oname) {
+  void queue_job(const job_t& job, const T& trace, S& oname) {
     {
       std::unique_lock<std::mutex> lock(queue_mutex);
       jobs.push(job);
@@ -69,7 +69,7 @@ public:
   }
 
 private:
-  void threadLoop() {
+  void threadloop() {
     while (true) {
       job_t job;
       T trace;
@@ -104,9 +104,9 @@ private:
   std::queue<S> ofnames;
 };
 
-void printLogs(trace_t trace, std::string ofname);
-void printPacketLogs(std::vector<Perfetto::TracePacket> trace, FILE* ofile);
+void print_insn_logs(trace_t trace, std::string ofname);
+void print_event_logs(std::vector<perfetto::packet_t> trace, FILE* ofile);
 
-} // namespace Profiler
+} // namespace profiler
 
 #endif //__THREAD_POOL_H__

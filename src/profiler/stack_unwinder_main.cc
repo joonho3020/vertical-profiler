@@ -77,7 +77,7 @@ int main() {
 
   const uint64_t trace_idx = 20000;
 
-  Profiler::StackUnwinder *stack_unwinder = new Profiler::StackUnwinder(
+  profiler::stack_unwinder_t *stack_unwinder = new profiler::stack_unwinder_t(
       dwarf_paths,
       callstack);
 
@@ -106,9 +106,9 @@ int main() {
         std::string binpath = asid_to_bin[asid];
         std::vector<std::string> subpath;
         split(subpath, binpath, '/');
-        stack_unwinder->addInstruction(addr, cycle, subpath.back());
+        stack_unwinder->add_instruction(addr, cycle, subpath.back());
       } else {
-        stack_unwinder->addInstruction(addr, cycle, KERNEL);
+        stack_unwinder->add_instruction(addr, cycle, KERNEL);
       }
       cycle++;
     }

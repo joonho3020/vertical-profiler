@@ -7,15 +7,16 @@
 #include <riscv/processor.h>
 
 #include "types.h"
+#include "profiler_state.h"
 #include "../spike-top/processor_lib.h"
 
-namespace Profiler {
+namespace profiler {
 
-  class Profiler;
+class profiler_t;
 
-struct CallStackInfo {
+struct callstack_entry_t {
 public:
-  CallStackInfo(std::string func, std::string binary);
+  callstack_entry_t(std::string func, std::string binary);
   std::string fn();
   std::string bin();
 
@@ -25,25 +26,25 @@ private:
   std::string binary;
 };
 
-typedef std::optional<CallStackInfo> OptCallStackInfo;
+typedef std::optional<callstack_entry_t> opt_cs_entry_t;
 
 
-class Function {
+class function_t {
 public:
-  Function(std::string name);
+  function_t(std::string name);
 
   std::string name() { return n; }
-  virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) = 0;
+  virtual opt_cs_entry_t update_profiler(profiler_t* p) = 0;
 
 private:
   const std::string n;
 };
 
 
-class KernelFunction : public Function {
+class kernel_function_t : public function_t {
 public:
-  KernelFunction(std::string name);
-  virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) = 0;
+  kernel_function_t(std::string name);
+  virtual opt_cs_entry_t update_profiler(profiler_t* p) = 0;
 
 protected:
   addr_t get_current_ptr(processor_lib_t* proc);
@@ -51,54 +52,55 @@ protected:
 };
 
 
-class KF_do_execveat_common : public KernelFunction {
+class kf_do_execveat_common : public kernel_function_t {
 public:
-  KF_do_execveat_common(std::string name);
-  virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) override;
+  kf_do_execveat_common(std::string name);
+  virtual opt_cs_entry_t update_profiler(profiler_t* p) override;
 
 private:
-  std::string find_exec_syscall_filepath(Profiler *p, processor_lib_t *proc);
+  std::string find_exec_syscall_filepath(profiler_t *p, processor_lib_t *proc);
+  void update_pid2bin(profiler_t* p, processor_lib_t* proc, std::string filepath);
   const addr_t MAX_FILENAME_SIZE = 200;
 };
 
 
-class KF_set_mm_asid : public KernelFunction {
+class kf_set_mm_asid : public kernel_function_t {
 public:
-  KF_set_mm_asid(std::string name);
-  virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) override;
+  kf_set_mm_asid(std::string name);
+  virtual opt_cs_entry_t update_profiler(profiler_t* p) override;
 
 private:
-  bool called_by_do_execveat_common(std::vector<CallStackInfo>& cs);
+  bool called_by_do_execveat_common(std::vector<callstack_entry_t>& cs);
 };
 
-class KF_kernel_clone : public KernelFunction {
+class kf_kernel_clone : public kernel_function_t {
 public:
-  KF_kernel_clone(std::string name);
-  virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) override;
+  kf_kernel_clone(std::string name);
+  virtual opt_cs_entry_t update_profiler(profiler_t* p) override;
 
 private:
-  pid_t get_forked_task_pid(Profiler* p, processor_lib_t* proc);
+  pid_t get_forked_task_pid(profiler_t* p, processor_lib_t* proc);
 };
 
-class KF_pick_next_task_fair : public KernelFunction {
+class kf_pick_next_task_fair : public kernel_function_t {
 public:
-  KF_pick_next_task_fair(std::string name);
-  virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) override;
+  kf_pick_next_task_fair(std::string name);
+  virtual opt_cs_entry_t update_profiler(profiler_t* p) override;
 
 private:
-  std::optional<pid_t> get_pid_next_task(Profiler *p, processor_lib_t* proc);
+  optreg_t get_pid_next_task(profiler_t *p, processor_lib_t* proc);
 };
 
-class KF_finish_task_switch : public KernelFunction {
+class kf_finish_task_switch : public kernel_function_t {
 public:
-  KF_finish_task_switch(std::string name);
-  virtual OptCallStackInfo update_profiler(Profiler *p, trace_t& t) override;
+  kf_finish_task_switch(std::string name);
+  virtual opt_cs_entry_t update_profiler(profiler_t* p) override;
 
 private:
-  pid_t get_prev_pid(Profiler *p, processor_lib_t* proc);
+  pid_t get_prev_pid(profiler_t *p, processor_lib_t* proc);
 };
 
-} // namespace Profiler
+} // namespace profiler_t
 
 
 #endif //__CALLSTACK_INFO_H__

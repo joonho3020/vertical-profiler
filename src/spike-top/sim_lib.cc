@@ -305,7 +305,6 @@ void sim_lib_t::init() {
 
 void sim_lib_t::run_for(uint64_t steps) {
   uint64_t tot_step = 0;
-  target_trace.clear();
 
   while (target_running() && tot_step < steps) {
     uint64_t tohost_req = check_tohost_req();

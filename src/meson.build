@@ -30,10 +30,10 @@ objdump_parser_lib = library('objdump_parser_lib',
 
 tracerv_lib = library('tracerv_lib',
   [
-    'profiler/tracerv_dwarf.cc',
-    'profiler/tracerv_elf.cc',
-    'profiler/tracerv_processing.cc',
-    'profiler/trace_tracker.cc'
+    'tracerv/tracerv_dwarf.cc',
+    'tracerv/tracerv_elf.cc',
+    'tracerv/tracerv_processing.cc',
+    'tracerv/trace_tracker.cc'
   ],
   dependencies : [lib_deps])
 
@@ -76,6 +76,7 @@ executable('profiler_main',
   [
     'profiler/profiler_main.cc',
     'profiler/profiler.cc',
+    'profiler/profiler_state.cc',
     'profiler/thread_pool.cc',
     'profiler/disasm.cc',
     'profiler/callstack_info.cc',

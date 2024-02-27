@@ -1,27 +1,29 @@
 #include <string>
-#include "../src/perfetto_trace.h"
+#include "../profiler/perfetto_trace.h"
 
 
-void add_packet(
-    Profiler::Perfetto::Trace* trace,
-    std::string s, Profiler::Perfetto::PACKET_TYPE t, uint64_t time) {
-  Profiler::Perfetto::TracePacket tp(s, t, time);
+void add_packet(profiler::perfetto::event_trace_t* trace,
+                std::string s,
+                profiler::perfetto::PACKET_TYPE t,
+                uint64_t time) {
+  profiler::perfetto::packet_t tp(s, t, time);
   trace->add_packet(tp);
 }
 
 int main() {
-  Profiler::Perfetto::Trace* trace = new Profiler::Perfetto::Trace("test-perfetto.txt");
+  profiler::perfetto::event_trace_t* trace =
+    new profiler::perfetto::event_trace_t("test-perfetto.txt");
 
-  add_packet(trace, "ONE",    Profiler::Perfetto::TYPE_SLICE_BEGIN, 100);
-  add_packet(trace, "ONE",    Profiler::Perfetto::TYPE_SLICE_END  , 200);
+  add_packet(trace, "ONE",    profiler::perfetto::TYPE_SLICE_BEGIN, 100);
+  add_packet(trace, "ONE",    profiler::perfetto::TYPE_SLICE_END  , 200);
 
-  add_packet(trace, "TWO",   Profiler::Perfetto::TYPE_SLICE_BEGIN, 200);
-  add_packet(trace, "THREE", Profiler::Perfetto::TYPE_SLICE_BEGIN, 300);
-  add_packet(trace, "THREE", Profiler::Perfetto::TYPE_SLICE_END,   400);
-  add_packet(trace, "TWO",   Profiler::Perfetto::TYPE_SLICE_END,   400);
+  add_packet(trace, "TWO",   profiler::perfetto::TYPE_SLICE_BEGIN, 200);
+  add_packet(trace, "THREE", profiler::perfetto::TYPE_SLICE_BEGIN, 300);
+  add_packet(trace, "THREE", profiler::perfetto::TYPE_SLICE_END,   400);
+  add_packet(trace, "TWO",   profiler::perfetto::TYPE_SLICE_END,   400);
 
-  add_packet(trace, "ONE",   Profiler::Perfetto::TYPE_SLICE_BEGIN, 500);
-  add_packet(trace, "ONE",   Profiler::Perfetto::TYPE_SLICE_BEGIN, 600);
+  add_packet(trace, "ONE",   profiler::perfetto::TYPE_SLICE_BEGIN, 500);
+  add_packet(trace, "ONE",   profiler::perfetto::TYPE_SLICE_BEGIN, 600);
 
   trace->close();
 

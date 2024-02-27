@@ -7,8 +7,8 @@
 #include <fstream>
 
 
-namespace Profiler {
-namespace Perfetto {
+namespace profiler {
+namespace perfetto {
 
 enum PACKET_TYPE {
   TYPE_SLICE_BEGIN = 0,
@@ -16,9 +16,9 @@ enum PACKET_TYPE {
   TYPE_INSTANT     = 2
 };
 
-class TracePacket { // corresponds to the trace_packet.proto
+class packet_t { // corresponds to the trace_packet.proto
 public:
-  TracePacket(std::string name, PACKET_TYPE type_enum, uint64_t timestamp);
+  packet_t(std::string name, PACKET_TYPE type_enum, uint64_t timestamp);
   void print(FILE* of);
 
 private:
@@ -28,18 +28,17 @@ private:
 };
 
 
-class Trace {
+class event_trace_t {
 public:
-  Trace(std::string ofname);
-  void add_packet(TracePacket tp);
+  event_trace_t(std::string ofname);
+  void add_packet(packet_t tp);
   void close();
 
 private:
   FILE* of;
 };
 
-} // namespace Perfetto
-} // namespace Profiler
-
+} // namespace perfetto
+} // namespace profiler
 
 #endif // __PERFETTO_TRACE_H__

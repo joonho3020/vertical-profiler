@@ -15,9 +15,9 @@
 #include "types.h"
 #include "thread_pool.h"
 
-namespace Profiler {
+namespace profiler {
 
-void printLogs(trace_t trace, std::string oname) {
+void print_insn_logs(trace_t trace, std::string oname) {
   std::ofstream os(oname, std::ofstream::out);
   for (auto& t : trace) {
     os << std::hex << t.pc << " " << std::dec << t.asid << " " << t.prv << " " << t.prev_prv << "\n";
@@ -25,11 +25,11 @@ void printLogs(trace_t trace, std::string oname) {
   os.close();
 }
 
-void printPacketLogs(std::vector<Perfetto::TracePacket> trace, FILE* ofile) {
+void print_event_logs(std::vector<perfetto::packet_t> trace, FILE* ofile) {
   for (auto &pkt : trace) {
     pkt.print(ofile);
   }
 }
 
 
-} // namespace Profiler
+} // namespace profiler

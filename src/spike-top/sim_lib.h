@@ -25,7 +25,7 @@
 #include "processor_lib.h"
 
 
-#define DEBUG_MEM
+/* #define DEBUG_MEM */
 /* #define DEBUG_PROTOBUF */
 
 
@@ -87,6 +87,7 @@ public:
   const char* rtl_tracefile_name;
 
   trace_t& run_trace() { return target_trace; }
+  void clear_run_trace() { target_trace.clear(); }
   processor_lib_t* get_core(size_t i) { 
     return dynamic_cast<processor_lib_t*>(procs.at(i)); 
   }

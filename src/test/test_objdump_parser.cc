@@ -5,32 +5,32 @@
 #include <string>
 #include <iostream>
 #include <vector>
-#include "../src/objdump_parser.h"
-#include "../src/types.h"
+#include "../profiler/objdump_parser.h"
+#include "../profiler/types.h"
 
-using namespace Profiler;
+using namespace profiler;
 
-void test(std::string func, int arg_idx, ObjdumpParser* parser) {
+void test(std::string func, int arg_idx, objdump_parser_t* parser) {
   std::string reg_name = parser->func_args_reg(func, arg_idx);
   std::cout << "func: " << func << " arg[" << arg_idx << "]: " << reg_name << std::endl;
 }
 
-void check_func_body(std::string func, ObjdumpParser* parser) {
+void check_func_body(std::string func, objdump_parser_t* parser) {
   std::vector<std::string> body = parser->get_func_body(func);
   for (auto l : body) {
     std::cout << l << std::endl;
   }
 }
 
-void check_func_start(std::string func, ObjdumpParser* parser) {
+void check_func_start(std::string func, objdump_parser_t* parser) {
   std::cout << func << " start addr: 0x" << std::hex << parser->get_func_start_va(func) << std::endl;
 }
 
-void check_func_end(std::string func, ObjdumpParser* parser) {
+void check_func_end(std::string func, objdump_parser_t* parser) {
   std::cout << func << " end addr: 0x" << std::hex << parser->get_func_end_va(func) << std::endl;
 }
 
-/* void check_func_callsites(std::string caller, std::string callee, ObjdumpParser* parser) { */
+/* void check_func_callsites(std::string caller, std::string callee, objdump_parser_t* parser) { */
 /* std::vector<addr_t> addrs = parser->get_func_callsites(caller, callee); */
 /* std::cout << caller << " calls " << callee << " at" << std::endl; */
 /* for (addr : addrs) { */
@@ -38,7 +38,7 @@ void check_func_end(std::string func, ObjdumpParser* parser) {
 /* } */
 /* } */
 
-void check_func_exits(std::string func, ObjdumpParser* parser) {
+void check_func_exits(std::string func, objdump_parser_t* parser) {
   std::vector<addr_t> exit_points = parser->get_func_exits_va(func);
   std::cout << func << " exit addrs" << std::endl;
   for (auto addr : exit_points) {
@@ -48,7 +48,7 @@ void check_func_exits(std::string func, ObjdumpParser* parser) {
 
 int main() {
   std::string test_file_path = "../test/test.dump";
-  ObjdumpParser *parser = new ObjdumpParser(test_file_path);
+  objdump_parser_t *parser = new objdump_parser_t(test_file_path);
 
   check_func_body("alloc_bprm", parser);
   check_func_body("do_execveat_common.isra.0", parser);

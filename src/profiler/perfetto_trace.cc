@@ -6,10 +6,10 @@
 #include <iostream>
 #include "perfetto_trace.h"
 
-namespace Profiler {
-namespace Perfetto {
+namespace profiler {
+namespace perfetto {
 
-TracePacket::TracePacket(std::string name, PACKET_TYPE type_enum, uint64_t timestamp)
+packet_t::packet_t(std::string name, PACKET_TYPE type_enum, uint64_t timestamp)
   : name(name), timestamp(timestamp)
 {
   switch (type_enum) {
@@ -28,7 +28,7 @@ TracePacket::TracePacket(std::string name, PACKET_TYPE type_enum, uint64_t times
   }
 }
 
-void TracePacket::print(FILE* of) {
+void packet_t::print(FILE* of) {
   fprintf(of, "packet {\n");
   fprintf(of, "\ttimestamp: %" PRIu64 "\n", timestamp);
   fprintf(of, "\ttrack_event: {\n");
@@ -43,7 +43,7 @@ void TracePacket::print(FILE* of) {
 /* fflush(of); */
 }
 
-Trace::Trace(std::string ofname) {
+event_trace_t::event_trace_t(std::string ofname) {
   of = fopen(ofname.c_str(), "w");
   if (of == NULL) {
     fprintf(stderr, "Unable to open log file %s\n", ofname.c_str());
@@ -51,14 +51,14 @@ Trace::Trace(std::string ofname) {
   }
 }
 
-void Trace::add_packet(TracePacket tp) {
+void event_trace_t::add_packet(packet_t tp) {
   tp.print(of);
 }
 
-void Trace::close() {
+void event_trace_t::close() {
   fclose(of);
 }
 
 
-} // namespace Perfetto
-} // namespace Profiler
+} // namespace perfetto
+} // namespace profiler

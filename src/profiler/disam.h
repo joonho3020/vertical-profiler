@@ -4,7 +4,7 @@
 #include <string>
 #include <riscv/decode.h>
 
-namespace Profiler {
+namespace profiler {
 
 #define OP_CSR 0b1110011
 
@@ -12,11 +12,9 @@ namespace Profiler {
 
 
 
-
-
-class Disassembler {
+class disassembler_t {
 public:
-  Disassembler() {}
+  disassembler_t() {}
 
 public:
   uint64_t opcode(insn_t insn);
@@ -28,6 +26,6 @@ private:
   uint64_t bits(insn_t insn, int lo, int len);
 };
 
-} // namespace Profiler
+} // namespace profiler
 
 #endif //__DISASM_H__

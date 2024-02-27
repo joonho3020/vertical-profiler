@@ -7,9 +7,9 @@
 #include "objdump_parser.h"
 #include "../lib/string_parser.h"
 
-namespace Profiler {
+namespace profiler {
 
-ObjdumpParser::ObjdumpParser(std::string objdump_path)
+objdump_parser_t::objdump_parser_t(std::string objdump_path)
   : objdump_path(objdump_path)
 {
   std::string line;
@@ -55,7 +55,7 @@ ObjdumpParser::ObjdumpParser(std::string objdump_path)
 }
 
 // TODO : Don't want to repeat opening up a file, read it, and parse it.
-std::vector<std::string>& ObjdumpParser::get_func_body(std::string func) {
+std::vector<std::string>& objdump_parser_t::get_func_body(std::string func) {
   auto it = func_bodies.find(func);
   if (it == func_bodies.end()) {
     assert((void("Could not find function body in the objdump"), false));
@@ -64,7 +64,7 @@ std::vector<std::string>& ObjdumpParser::get_func_body(std::string func) {
 }
 
 
-std::string ObjdumpParser::func_args_reg(std::string func, int arg_idx) {
+std::string objdump_parser_t::func_args_reg(std::string func, int arg_idx) {
   assert((void("RISC-V can pass up to 8 arguments via regs"), arg_idx <= 7));
 
   std::vector<std::string> body = get_func_body(func);
@@ -95,7 +95,7 @@ std::string ObjdumpParser::func_args_reg(std::string func, int arg_idx) {
   return r;
 }
 
-std::string ObjdumpParser::func_ret_reg(std::string func) {
+std::string objdump_parser_t::func_ret_reg(std::string func) {
   std::vector<std::string> body = get_func_body(func);
   std::vector<std::string> words;
 
@@ -122,7 +122,7 @@ std::string ObjdumpParser::func_ret_reg(std::string func) {
   assert(false);
 }
 
-addr_t ObjdumpParser::get_func_start_va(std::string func) {
+addr_t objdump_parser_t::get_func_start_va(std::string func) {
   auto it = func_start_va.find(func);
   if (it == func_start_va.end()) {
     assert((void("Could not find function starting name in the objdump"), false));
@@ -130,7 +130,7 @@ addr_t ObjdumpParser::get_func_start_va(std::string func) {
   return it->second;
 }
 
-addr_t ObjdumpParser::get_func_end_va(std::string func) {
+addr_t objdump_parser_t::get_func_end_va(std::string func) {
   auto it = func_end_va.find(func);
   if (it == func_end_va.end()) {
     assert((void("Could not find function ending name in the objdump"), false));
@@ -138,7 +138,7 @@ addr_t ObjdumpParser::get_func_end_va(std::string func) {
   return it->second;
 }
 
-std::vector<addr_t> ObjdumpParser::get_func_exits_va(std::string func) {
+std::vector<addr_t> objdump_parser_t::get_func_exits_va(std::string func) {
   std::vector<std::string>& body = get_func_body(func);
   std::vector<std::string> words;
 
@@ -158,4 +158,4 @@ std::vector<addr_t> ObjdumpParser::get_func_exits_va(std::string func) {
   return exit_points;
 }
 
-} // namespace Profiler
+} // namespace profiler

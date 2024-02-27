@@ -5,18 +5,18 @@
 #include <map>
 #include <vector>
 
-#include "trace_tracker.h"
-#include "tracerv_processing.h"
+#include "../tracerv/trace_tracker.h"
+#include "../tracerv/tracerv_processing.h"
 
-namespace Profiler {
+namespace profiler {
 
-class StackUnwinder {
+class stack_unwinder_t {
 public:
-  StackUnwinder(
+  stack_unwinder_t(
       std::vector<std::pair<std::string, std::string>> objdump_paths,
       FILE* stackfile);
 
-  void addInstruction(uint64_t inst_addr, uint64_t cycle, std::string binary);
+  void add_instruction(uint64_t inst_addr, uint64_t cycle, std::string binary);
 
 private:
   std::map<std::string, ObjdumpedBinary*> bin_dumps;

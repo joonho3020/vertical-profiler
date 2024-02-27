@@ -4,12 +4,12 @@
 #include <assert.h>
 
 #include "stack_unwinder.h"
-#include "trace_tracker.h"
-#include "tracerv_processing.h"
+#include "../tracerv/trace_tracker.h"
+#include "../tracerv/tracerv_processing.h"
 
-namespace Profiler {
+namespace profiler {
 
-StackUnwinder::StackUnwinder(
+stack_unwinder_t::stack_unwinder_t(
     std::vector<std::pair<std::string, std::string>> objdump_paths,
     FILE *stackfile)
 {
@@ -20,7 +20,7 @@ StackUnwinder::StackUnwinder(
   this->stackfile = stackfile;
 }
 
-void StackUnwinder::addInstruction(uint64_t inst_addr,
+void stack_unwinder_t::add_instruction(uint64_t inst_addr,
                                    uint64_t cycle,
                                    std::string binary) {
   auto bit = bin_dumps.find(binary);

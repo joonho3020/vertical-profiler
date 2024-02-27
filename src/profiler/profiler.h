@@ -21,14 +21,15 @@
 #include "disam.h"
 #include "callstack_info.h"
 #include "perfetto_trace.h"
+#include "profiler_state.h"
 
 /* #define PROFILER_DEBUG */
 
-namespace Profiler {
+namespace profiler {
 
-class Profiler : public sim_lib_t {
+class profiler_t : public sim_lib_t {
 public:
-  Profiler(std::vector<std::pair<std::string, std::string>> objdump_paths,
+  profiler_t(std::vector<std::pair<std::string, std::string>> objdump_paths,
       std::vector<std::pair<std::string, std::string>> dwarf_paths,
       const cfg_t *cfg, bool halted,
       std::vector<std::pair<reg_t, abstract_mem_t*>> mems,
@@ -46,85 +47,51 @@ public:
       FILE *stackfile,
       FILE *proflogfile);
 
-  ~Profiler();
+  ~profiler_t();
 
 
 public:
   // user facing APIs
   virtual int run() override;
   void process_callstack();
-  void add_kernel_func_to_profile(Function* f, bool rewind_at_exit);
+  void add_kernel_func_to_profile(function_t* f, bool rewind_at_exit);
 
   FILE* get_prof_logfile() { return prof_logfile; }
 
-private:
-  inline bool found_registered_func_start_addr(addr_t va);
-  inline bool found_registered_func_end_addr(addr_t va);
-  bool   user_space_addr(addr_t va);
+  profiler_state_t* pstate;
 
 private:
-  std::map<std::string, ObjdumpParser*> objdumps;
-  Disassembler disasm;
-
-  // Profiler state
-  std::map<addr_t, Function*> prof_pc_to_func;
-  std::vector<addr_t>         func_pc_prof_start;
-  std::vector<addr_t>         func_pc_prof_exit;
-
-  std::map<pid_t, std::vector<CallStackInfo>> fstacks;
-  std::map<reg_t, std::string> asid_to_bin;
-
-  // fork : add a new pid to bin mapping. the binary should be from the parent pid
-  // exec : update the existing pid to bin mapping
-  std::map<pid_t, std::string> pid_to_bin;
-
-
-  // NOTE : There can be times when cur_pid and the pid from Spike does not
-  // match. This is because we are updating cur_pid whenever CFS makes a
-  // scheduling decision. However, the kernel has to perform the
-  // "context_switch" function after the scheduling decision is made to
-  // update the PID. Hence in this case, the value of cur_pid is one step
-  // ahead of the functional sim's PID.
-  pid_t cur_pid = 0;
-  reg_t insn_retired = 0;
+  bool user_space_addr(addr_t va);
+  std::map<std::string, objdump_parser_t*> objdumps;
+  disassembler_t disasm;
 
 public:
   // APIs for updating the profiler state
-  ObjdumpParser* get_objdump_parser(std::string oname);
-  std::vector<CallStackInfo>& get_callstack(pid_t pid);
-  std::map<reg_t, std::string>& get_asid2bin_map();
-  std::map<pid_t, std::string>& get_pid2bin_map();
-  void  set_curpid(pid_t pid);
-  pid_t get_curpid();
-
-  void step_until_insn(std::string type, trace_t& trace);
-
-  reg_t get_insn_retired() { return insn_retired; }
-
-  void submit_packet(Perfetto::TracePacket pkt);
-
+  objdump_parser_t* get_objdump_parser(std::string oname);
+  void step_until_insn(std::string type);
+  void submit_packet(perfetto::packet_t pkt);
 
 private:
   // Stuff for output logging and tracing
   std::string prof_tracedir;
   uint64_t trace_idx = 0;
   std::string spiketrace_filename(uint64_t idx);
-  ThreadPool<trace_t, std::string> loggers;
+  threadpool_t<trace_t, std::string> loggers;
   void submit_trace_to_threadpool(trace_t& trace);
 
   FILE* prof_logfile;
 
-  std::vector<Perfetto::TracePacket> packet_traces;
-  ThreadPool<std::vector<Perfetto::TracePacket>, FILE*> packet_loggers;
+  std::vector<perfetto::packet_t> packet_traces;
+  threadpool_t<std::vector<perfetto::packet_t>, FILE*> packet_loggers;
   const uint32_t PACKET_TRACE_FLUSH_THRESHOLD = 1000;
   FILE* proflog_tp;
   void submit_packet_trace_to_threadpool();
 
 private:
   // Stuff for stack unwinding
-  StackUnwinder* stack_unwinder;
+  stack_unwinder_t* stack_unwinder;
 };
 
-} // namespace Profiler
+} // namespace profiler_t
 
 #endif //__PROFILER_H__
