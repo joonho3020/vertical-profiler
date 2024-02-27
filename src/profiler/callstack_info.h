@@ -34,12 +34,13 @@ public:
   function_t(std::string name);
 
   std::string name() { return n; }
+
+  // when called, updates the profiler state under the hood
   virtual opt_cs_entry_t update_profiler(profiler_t* p) = 0;
 
 private:
   const std::string n;
 };
-
 
 class kernel_function_t : public function_t {
 public:
@@ -88,7 +89,7 @@ public:
   virtual opt_cs_entry_t update_profiler(profiler_t* p) override;
 
 private:
-  optreg_t get_pid_next_task(profiler_t *p, processor_lib_t* proc);
+  void get_pid_next_task(profiler_t *p, processor_lib_t* proc);
 };
 
 class kf_finish_task_switch : public kernel_function_t {

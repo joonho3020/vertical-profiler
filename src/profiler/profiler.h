@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <chrono>
+
 #include <riscv/cfg.h>
 #include <riscv/debug_module.h>
 #include <riscv/devices.h>
@@ -24,6 +26,30 @@
 #include "profiler_state.h"
 
 /* #define PROFILER_DEBUG */
+
+
+#define GET_TIME() std::chrono::high_resolution_clock::now()
+
+#define MEASURE_TIME(S, E, T) \
+  T += std::chrono::duration_cast<std::chrono::microseconds>(E - S).count()
+
+#define PRINT_TIME_STAT(N, T) \
+  pprintf("Time (s) %s: %f\n", N, T / (1000 * 1000))
+
+#define INCREMENT_CNTR(C) \
+  C++
+
+#define PRINT_CNTR_STAT(N, X) \
+  pprintf("Cntr %s: %" PRIu64 "\n", N, X)
+
+#define MEASURE_AVG_TIME(S, E, T, C) \
+  MEASURE_TIME(S, E, T);             \
+  INCREMENT_CNTR(C);
+
+#define PRINT_AVG_TIME_STAT(N, T, C) \
+  pprintf("Avg (us) %s: %f / %" PRIu64 "  = %f\n", N, T, C, T/C)
+
+
 
 namespace profiler {
 

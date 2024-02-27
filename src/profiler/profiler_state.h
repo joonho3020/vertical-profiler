@@ -2,6 +2,7 @@
 #define __PROFILER_STATE_H__
 
 #include <vector>
+#include <string>
 #include "callstack_info.h"
 #include "types.h"
 
@@ -19,14 +20,18 @@ public:
   void add_prof_start(addr_t va);
   void add_prof_exit (addr_t va);
 
-  reg2str_t& asid2bin() { return asid_to_bin_; };
-  reg2str_t& pid2bin()  { return pid_to_bin_;  };
+  reg2str_t& asid2bin();
+  void update_asid2bin(reg_t asid, std::string bin);
 
-  void  set_curpid(reg_t pid) { cur_pid_ = pid; }
-  reg_t get_curpid()          { return cur_pid_; }
+  reg2str_t& pid2bin();
+  std::optional<std::string> pid2bin_lookup(reg_t pid);
+  void update_pid2bin(reg_t pid, std::string bin);
 
-  void incr_retired_insns(reg_t amount) { insn_retired_ += amount; }
-  reg_t get_insn_retired() { return insn_retired_; }
+  void  set_curpid(reg_t pid);
+  reg_t get_curpid();
+
+  void incr_retired_insns(reg_t amount);
+  reg_t get_insn_retired();
 
   std::vector<callstack_entry_t>& get_callstack(reg_t pid);
   void pop_callstack (reg_t pid);

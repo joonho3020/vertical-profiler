@@ -5,7 +5,6 @@
 #include <sys/types.h>
 #include <vector>
 #include <map>
-#include <chrono>
 
 #include <riscv/cfg.h>
 #include <riscv/debug_module.h>
@@ -47,28 +46,6 @@
 //    -> maybe the correct way to do things is to output some logs during the
 //    profiling run, and when it is finished, read those logs while using the
 //    profiling metadata directly (which is how the stack-unwinder is implemented)
-
-
-#define GET_TIME() std::chrono::high_resolution_clock::now()
-
-#define MEASURE_TIME(S, E, T) \
-  T += std::chrono::duration_cast<std::chrono::microseconds>(E - S).count()
-
-#define PRINT_TIME_STAT(N, T) \
-  pprintf("Time (s) %s: %f\n", N, T / (1000 * 1000))
-
-#define INCREMENT_CNTR(C) \
-  C++
-
-#define PRINT_CNTR_STAT(N, X) \
-  pprintf("Cntr %s: %" PRIu64 "\n", N, X)
-
-#define MEASURE_AVG_TIME(S, E, T, C) \
-  MEASURE_TIME(S, E, T);             \
-  INCREMENT_CNTR(C);
-
-#define PRINT_AVG_TIME_STAT(N, T, C) \
-  pprintf("Avg (us) %s: %f / %" PRIu64 "  = %f\n", N, T, C, T/C)
 
 namespace profiler {
 
@@ -278,22 +255,28 @@ int profiler_t::run() {
                               fwd_steps - INTERLEAVE;
       this->clear_run_trace();
       this->run_for(fastfwd_steps);
+
       bool found_function = false;
       do {
         processor_t* proc = get_core(0);
         state_t* state = proc->get_state();
         addr_t va = state->pc;
-
         optreg_t opt_sa = pstate->found_registered_func_start_addr(va);
+
         if (unlikely(opt_sa.has_value())) {
           auto f = pstate->get_profile_func(opt_sa.value());
+
+          // TODO : This logic of returning a stack entry for certain
+          // functions is not that pretty.
           opt_cs_entry_t entry = f->update_profiler(this);
           if (entry.has_value()) {
             pstate->push_callstack(pstate->get_curpid(), entry.value());
           }
           found_function = true;
         }
+
         run_for(1);
+
         INCREMENT_CNTR(single_step_cnt);
       } while (!found_function);
 
@@ -389,8 +372,6 @@ void profiler_t::process_callstack() {
       split(words, line);
       uint64_t addr = std::stoull(words[0], &sz, 16);
       uint64_t asid = std::stoull(words[1], &sz, 10);
-/* uint64_t prv  = std::stoull(words[2], &sz, 10); */
-/* std::string prev_prv = words[3]; // TODO don't need? */
       words.clear();
 
       auto asid_to_bin = pstate->asid2bin();

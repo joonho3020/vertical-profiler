@@ -63,10 +63,15 @@ kf_do_execveat_common::kf_do_execveat_common(std::string name)
 opt_cs_entry_t kf_do_execveat_common::update_profiler(profiler_t* p) {
   // TODO : multicore support
   processor_lib_t* proc = p->get_core(0);
-
-  // map current asid with binary name
+  reg_t pid = get_current_pid(proc);
   std::string filepath = find_exec_syscall_filepath(p, proc);
-  update_pid2bin(p, proc, filepath);
+
+  p->pstate->update_pid2bin(pid, filepath);
+  p->submit_packet(perfetto::packet_t(
+        std::string(k_do_execveat_common),
+        perfetto::TYPE_INSTANT,
+        p->pstate->get_insn_retired()));
+
   return callstack_entry_t(k_do_execveat_common, filepath);
 }
 
@@ -98,33 +103,6 @@ std::string kf_do_execveat_common::find_exec_syscall_filepath(
   return name;
 }
 
-void kf_do_execveat_common::update_pid2bin(
-    profiler_t* p,
-    processor_lib_t* proc,
-    std::string filepath)
-{
-  state_t* state = proc->get_state();
-  addr_t va = state->pc;
-  addr_t asid = proc->get_asid();
-
-  // update the pid mapping
-  reg2str_t& pid2bin = p->pstate->pid2bin();
-  reg_t pid = get_current_pid(proc);
-
-  auto it = pid2bin.find(pid);
-  if (it != pid2bin.end()) {
-    pprintf("Updating pid2bin[%u]: %s -> %s\n",
-      pid, it->second.c_str(), filepath.c_str());
-
-    p->submit_packet(perfetto::packet_t(
-          std::string(k_do_execveat_common),
-          perfetto::TYPE_INSTANT,
-          p->pstate->get_insn_retired()));
-  }
-  pid2bin[pid] = filepath;
-}
-
-
 kf_set_mm_asid::kf_set_mm_asid(std::string name)
   : kernel_function_t(name)
 {
@@ -142,11 +120,10 @@ opt_cs_entry_t kf_set_mm_asid::update_profiler(profiler_t* p) {
     std::string bin = top.bin();
     reg_t asid = proc->get_asid();
 
-    p->pstate->asid2bin().insert({asid, bin});
-
     pprintf("Found mapping ASID: %" PRIu64 " PID: %u bin: %s\n",
         asid, pid, bin.c_str());
 
+    p->pstate->update_asid2bin(asid, bin);
     p->submit_packet(perfetto::packet_t(
           std::string(k_set_mm_asid),
           perfetto::TYPE_INSTANT,
@@ -154,7 +131,7 @@ opt_cs_entry_t kf_set_mm_asid::update_profiler(profiler_t* p) {
 
     if (pid != p->pstate->get_curpid()) {
       pexit("%d Prof internal pid: %u, spike pid: %u\n",
-          __LINE__, p->pstate->get_curpid(), pid);
+            __LINE__, p->pstate->get_curpid(), pid);
     }
   }
   return callstack_entry_t(k_set_mm_asid, "");
@@ -179,18 +156,18 @@ opt_cs_entry_t kf_kernel_clone::update_profiler(profiler_t* p) {
   pid_t newpid = get_forked_task_pid(p, proc);
   pid_t parpid = get_current_pid(proc);
 
-
-  reg2str_t& pid2bin = p->pstate->pid2bin();
-  auto it = pid2bin.find(parpid);
-  if (it != pid2bin.end()) {
-    std::string bin = it->second;
-    pid2bin[newpid] = bin;
+  auto opt_bin = p->pstate->pid2bin_lookup(parpid);
+  std::string new_task_name;
+  if (opt_bin.has_value()) {
+    new_task_name = opt_bin.value();
   } else {
-    pid2bin[newpid] = "X";
+    // No parent process found yet, assign arbitrary name
+    new_task_name = "X";
   }
 
-  pprintf("Forked p: %u c: %u bin: %s\n", parpid, newpid, pid2bin[newpid].c_str());
+  pprintf("Forked p: %u c: %u bin: %s\n", parpid, newpid, new_task_name.c_str());
 
+  p->pstate->update_pid2bin(newpid, new_task_name);
   p->submit_packet(perfetto::packet_t(
         std::string(k_kernel_clone),
         perfetto::TYPE_INSTANT,
@@ -217,11 +194,11 @@ kf_pick_next_task_fair::kf_pick_next_task_fair(std::string name)
 
 opt_cs_entry_t kf_pick_next_task_fair::update_profiler(profiler_t* p) {
   processor_lib_t* proc = p->get_core(0);
-  optreg_t pid = get_pid_next_task(p, proc);
+  get_pid_next_task(p, proc);
   return {};
 }
 
-optreg_t kf_pick_next_task_fair::get_pid_next_task(profiler_t *p, processor_lib_t* proc) {
+void kf_pick_next_task_fair::get_pid_next_task(profiler_t *p, processor_lib_t* proc) {
   objdump_parser_t *obj = p->get_objdump_parser(KERNEL);
   std::string ret_reg = obj->func_ret_reg(k_pick_next_task_fair);
   unsigned int reg_idx = riscv_abi_ireg[ret_reg];
@@ -231,16 +208,16 @@ optreg_t kf_pick_next_task_fair::get_pid_next_task(profiler_t *p, processor_lib_
   addr_t next_task_ptr = state->XPR[reg_idx];
   if (next_task_ptr == 0) {
     pprintf("CFS doesn't have a task to schedule, ret_reg: %s\n", ret_reg.c_str());
-    return {};
   } else {
     addr_t next_task_pid_addr = next_task_ptr + offsetof_task_struct_pid;
     pid_t pid = mmu->load<pid_t>(next_task_pid_addr);
-
-    auto pid2bin = p->pstate->pid2bin();
-/* pprintf("CFS next_task_ptr: 0x%" PRIx64 "\n", next_task_ptr); */
-/* pprintf("CFS next task pid: %" PRIu32 " %s\n", pid, pid2bin[pid].c_str()); */
-    return optreg_t(pid);
   }
+
+  // TODO : Add metadata which indicates whether CFS was able to choose a task or  not
+  p->submit_packet(perfetto::packet_t(
+        std::string(k_pick_next_task_fair),
+        perfetto::TYPE_INSTANT,
+        p->pstate->get_insn_retired()));
 }
 
 kf_finish_task_switch::kf_finish_task_switch(std::string name)
@@ -282,14 +259,14 @@ pid_t kf_finish_task_switch::get_prev_pid(profiler_t *p, processor_lib_t* proc) 
   mmu_t* mmu = proc->get_mmu();
   state_t* state = proc->get_state();
   addr_t prev_task_ptr = state->XPR[reg_idx];
+
   if (prev_task_ptr == 0) {
     pexit("prev is null in %s\n", k_finish_task_switch);
-  } else {
-    addr_t prev_task_pid_addr = prev_task_ptr + offsetof_task_struct_pid;
-
-    pid_t prev_pid = mmu->load<pid_t>(prev_task_pid_addr);
-    return prev_pid;
   }
+
+  addr_t prev_task_pid_addr = prev_task_ptr + offsetof_task_struct_pid;
+  pid_t prev_pid = mmu->load<pid_t>(prev_task_pid_addr);
+  return prev_pid;
 }
 
 } // namespace profiler_t
