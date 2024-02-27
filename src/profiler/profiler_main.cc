@@ -566,17 +566,11 @@ int main(int argc, char** argv)
     exit(-1);
   }
 
-  FILE *proflog = fopen((prof_outdir_cpp + "/PROF-LOGS").c_str(), "w");
-  if (proflog == NULL) {
-    fprintf(stderr, "Unable to open log file PROF-LOGS\n");
-    exit(-1);
-  }
-
   std::string prof_tracedir = prof_outdir_cpp + "/traces";
 
   profiler::profiler_t p(objdump_paths, dwarf_paths, &cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
       log_path, dtb_enabled, dtb_file, socket, cmd_file,
-      true, NULL, prof_tracedir, callstack, proflog);
+      true, NULL, prof_tracedir, callstack);
 
   if (dump_dts) {
     printf("%s", p.get_dts());

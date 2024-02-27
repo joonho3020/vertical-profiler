@@ -24,6 +24,7 @@
 #include "callstack_info.h"
 #include "perfetto_trace.h"
 #include "profiler_state.h"
+#include "logger.h"
 
 /* #define PROFILER_DEBUG */
 
@@ -70,8 +71,7 @@ public:
       bool checkpoint,
       const char* rtl_tracefile_name,
       std::string prof_tracedir,
-      FILE *stackfile,
-      FILE *proflogfile);
+      FILE *stackfile);
 
   ~profiler_t();
 
@@ -79,41 +79,24 @@ public:
 public:
   // user facing APIs
   virtual int run() override;
-  void process_callstack();
+  void step_until_insn(std::string type);
+
   void add_kernel_func_to_profile(function_t* f, bool rewind_at_exit);
+  objdump_parser_t* get_objdump_parser(std::string oname);
 
-  FILE* get_prof_logfile() { return prof_logfile; }
+  profiler_state_t* pstate();
+  logger_t* logger();
 
-  profiler_state_t* pstate;
+  void process_callstack();
 
 private:
   bool user_space_addr(addr_t va);
-  std::map<std::string, objdump_parser_t*> objdumps;
-  disassembler_t disasm;
 
-public:
-  // APIs for updating the profiler state
-  objdump_parser_t* get_objdump_parser(std::string oname);
-  void step_until_insn(std::string type);
-  void submit_packet(perfetto::packet_t pkt);
+  std::map<std::string, objdump_parser_t*> objdumps_;
+  disassembler_t disasm_;
+  profiler_state_t* pstate_;
+  logger_t* logger_;
 
-private:
-  // Stuff for output logging and tracing
-  std::string prof_tracedir;
-  uint64_t trace_idx = 0;
-  std::string spiketrace_filename(uint64_t idx);
-  threadpool_t<trace_t, std::string> loggers;
-  void submit_trace_to_threadpool(trace_t& trace);
-
-  FILE* prof_logfile;
-
-  std::vector<perfetto::packet_t> packet_traces;
-  threadpool_t<std::vector<perfetto::packet_t>, FILE*> packet_loggers;
-  const uint32_t PACKET_TRACE_FLUSH_THRESHOLD = 1000;
-  FILE* proflog_tp;
-  void submit_packet_trace_to_threadpool();
-
-private:
   // Stuff for stack unwinding
   stack_unwinder_t* stack_unwinder;
 };

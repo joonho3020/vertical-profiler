@@ -66,11 +66,11 @@ opt_cs_entry_t kf_do_execveat_common::update_profiler(profiler_t* p) {
   reg_t pid = get_current_pid(proc);
   std::string filepath = find_exec_syscall_filepath(p, proc);
 
-  p->pstate->update_pid2bin(pid, filepath);
-  p->submit_packet(perfetto::packet_t(
+  p->pstate()->update_pid2bin(pid, filepath);
+  p->logger()->submit_packet(perfetto::packet_t(
         std::string(k_do_execveat_common),
         perfetto::TYPE_INSTANT,
-        p->pstate->get_insn_retired()));
+        p->pstate()->get_insn_retired()));
 
   return callstack_entry_t(k_do_execveat_common, filepath);
 }
@@ -111,7 +111,7 @@ kf_set_mm_asid::kf_set_mm_asid(std::string name)
 opt_cs_entry_t kf_set_mm_asid::update_profiler(profiler_t* p) {
   processor_lib_t* proc = p->get_core(0);
   reg_t pid = get_current_pid(proc);
-  std::vector<callstack_entry_t>& cs = p->pstate->get_callstack(pid);
+  std::vector<callstack_entry_t>& cs = p->pstate()->get_callstack(pid);
 
   if (called_by_do_execveat_common(cs)) {
     p->step_until_insn(CSRW);
@@ -123,15 +123,15 @@ opt_cs_entry_t kf_set_mm_asid::update_profiler(profiler_t* p) {
     pprintf("Found mapping ASID: %" PRIu64 " PID: %u bin: %s\n",
         asid, pid, bin.c_str());
 
-    p->pstate->update_asid2bin(asid, bin);
-    p->submit_packet(perfetto::packet_t(
+    p->pstate()->update_asid2bin(asid, bin);
+    p->logger()->submit_packet(perfetto::packet_t(
           std::string(k_set_mm_asid),
           perfetto::TYPE_INSTANT,
-          p->pstate->get_insn_retired()));
+          p->pstate()->get_insn_retired()));
 
-    if (pid != p->pstate->get_curpid()) {
+    if (pid != p->pstate()->get_curpid()) {
       pexit("%d Prof internal pid: %u, spike pid: %u\n",
-            __LINE__, p->pstate->get_curpid(), pid);
+            __LINE__, p->pstate()->get_curpid(), pid);
     }
   }
   return callstack_entry_t(k_set_mm_asid, "");
@@ -156,7 +156,7 @@ opt_cs_entry_t kf_kernel_clone::update_profiler(profiler_t* p) {
   pid_t newpid = get_forked_task_pid(p, proc);
   pid_t parpid = get_current_pid(proc);
 
-  auto opt_bin = p->pstate->pid2bin_lookup(parpid);
+  auto opt_bin = p->pstate()->pid2bin_lookup(parpid);
   std::string new_task_name;
   if (opt_bin.has_value()) {
     new_task_name = opt_bin.value();
@@ -167,11 +167,11 @@ opt_cs_entry_t kf_kernel_clone::update_profiler(profiler_t* p) {
 
   pprintf("Forked p: %u c: %u bin: %s\n", parpid, newpid, new_task_name.c_str());
 
-  p->pstate->update_pid2bin(newpid, new_task_name);
-  p->submit_packet(perfetto::packet_t(
+  p->pstate()->update_pid2bin(newpid, new_task_name);
+  p->logger()->submit_packet(perfetto::packet_t(
         std::string(k_kernel_clone),
         perfetto::TYPE_INSTANT,
-        p->pstate->get_insn_retired()));
+        p->pstate()->get_insn_retired()));
 
   return {};
 }
@@ -214,10 +214,10 @@ void kf_pick_next_task_fair::get_pid_next_task(profiler_t *p, processor_lib_t* p
   }
 
   // TODO : Add metadata which indicates whether CFS was able to choose a task or  not
-  p->submit_packet(perfetto::packet_t(
+  p->logger()->submit_packet(perfetto::packet_t(
         std::string(k_pick_next_task_fair),
         perfetto::TYPE_INSTANT,
-        p->pstate->get_insn_retired()));
+        p->pstate()->get_insn_retired()));
 }
 
 kf_finish_task_switch::kf_finish_task_switch(std::string name)
@@ -229,23 +229,23 @@ opt_cs_entry_t kf_finish_task_switch::update_profiler(profiler_t* p) {
   processor_lib_t* proc = p->get_core(0);
   pid_t cur_pid  = get_current_pid(proc);
   pid_t prev_pid = get_prev_pid(p, proc);
-  p->pstate->set_curpid(cur_pid);
+  p->pstate()->set_curpid(cur_pid);
 
 /* pprintf("ContextSwitch Finished %u -> %u\n", prev_pid, cur_pid); */
 
-  auto pid2bin = p->pstate->pid2bin();
+  auto pid2bin = p->pstate()->pid2bin();
 
   std::string prev_bin = pid2bin[prev_pid];
-  p->submit_packet(perfetto::packet_t(
+  p->logger()->submit_packet(perfetto::packet_t(
         prev_bin,
         perfetto::TYPE_SLICE_END,
-        p->pstate->get_insn_retired()));
+        p->pstate()->get_insn_retired()));
 
   std::string cur_bin = pid2bin[cur_pid];
-  p->submit_packet(perfetto::packet_t(
+  p->logger()->submit_packet(perfetto::packet_t(
         cur_bin,
         perfetto::TYPE_SLICE_BEGIN,
-        p->pstate->get_insn_retired()));
+        p->pstate()->get_insn_retired()));
 
   return callstack_entry_t(k_finish_task_switch, "");
 }

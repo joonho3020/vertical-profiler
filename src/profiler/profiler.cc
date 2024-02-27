@@ -65,30 +65,20 @@ profiler_t::profiler_t(
       bool checkpoint,
       const char* rtl_tracefile_name,
       std::string prof_tracedir,
-      FILE *stackfile,
-      FILE *prof_logfile)
+      FILE *stackfile)
   : sim_lib_t(cfg, halted, mems, plugin_device_factories, args, dm_config,
           log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file, checkpoint,
           rtl_tracefile_name,
-          false /* don't serialize_mem */),
-    prof_tracedir(prof_tracedir),
-    prof_logfile(prof_logfile)
+          false /* don't serialize_mem */)
 {
   for (auto& p: objdump_paths) {
-    objdumps.insert({p.first, new objdump_parser_t(p.second)});
+    objdumps_.insert({p.first, new objdump_parser_t(p.second)});
   }
 
-  this->pstate = new profiler_state_t();
+  this->logger_ = new logger_t(prof_tracedir);
+  this->pstate_ = new profiler_state_t();
   this->stack_unwinder = new stack_unwinder_t(dwarf_paths, stackfile);
 
-  loggers.start(4);
-  packet_loggers.start(1);
-
-  proflog_tp = fopen("./out/PROF-LOGS-THREADPOOL", "w");
-  if (proflog_tp == NULL) {
-    fprintf(stderr, "Unable to open log file PROF-LOGS-THREADPOOL\n");
-    exit(-1);
-  }
 
   function_t* f1 = new kf_do_execveat_common(k_do_execveat_common);
   this->add_kernel_func_to_profile(f1, false);
@@ -107,19 +97,21 @@ profiler_t::profiler_t(
 }
 
 profiler_t::~profiler_t() {
-  for (auto& o : objdumps) {
+  for (auto& o : objdumps_) {
     delete o.second;
   }
-  objdumps.clear();
+  objdumps_.clear();
+
   delete this->stack_unwinder;
-  delete this->pstate;
+  delete this->pstate_;
+  delete this->logger_;
 }
 
 void profiler_t::add_kernel_func_to_profile(function_t* f, bool rewind_at_exit) {
   std::string fname = f->name();
 
-  auto it = objdumps.find(KERNEL);
-  if (it == objdumps.end()) {
+  auto it = objdumps_.find(KERNEL);
+  if (it == objdumps_.end()) {
     pexit("Could not find kernel objdump\n");
   }
 
@@ -131,13 +123,13 @@ void profiler_t::add_kernel_func_to_profile(function_t* f, bool rewind_at_exit) 
     for (auto e : evas) {
       // Don't need to pop the stack because we are 
       // intercepting the function at its exit.
-      pstate->add_prof_func(e, f);
+      pstate_->add_prof_func(e, f);
     }
   } else {
     for (auto e : evas) {
-      pstate->add_prof_exit(e);
+      pstate_->add_prof_exit(e);
     }
-    pstate->add_prof_func(sva, f);
+    pstate_->add_prof_func(sva, f);
   }
 }
 
@@ -147,7 +139,7 @@ objdump_parser_t* profiler_t::get_objdump_parser(std::string oname) {
     pexit("Objdump mismatch: %s\n", oname.c_str());
   }
 #endif
-  return objdumps.find(oname)->second;
+  return objdumps_.find(oname)->second;
 }
 
 // Kernel takes up the upper virtual address
@@ -156,12 +148,20 @@ bool profiler_t::user_space_addr(addr_t va) {
   return ((va_hi & 0xffffffff) == 0);
 }
 
+profiler_state_t* profiler_t::pstate() {
+  return pstate_;
+}
+
+logger_t* profiler_t::logger() {
+  return logger_;
+}
+
 void profiler_t::step_until_insn(std::string type) {
   do {
     run_for(1);
     auto ctrace = this->run_trace();
     insn_t insn = ctrace.back().insn;
-    if (disasm.is_type(type, insn))
+    if (disasm_.is_type(type, insn))
       break;
   } while (true);
 }
@@ -215,11 +215,11 @@ int profiler_t::run() {
     auto trace_check_s = GET_TIME();
     for (size_t i = 0, cnt = pctrace.size(); i < cnt; i++) {
       reg_t pc = pctrace[i].pc;
-      if (pstate->found_registered_func_start_addr(pc).has_value()) {
+      if (pstate_->found_registered_func_start_addr(pc).has_value()) {
         rewind = true;
         fwd_steps = i;
         break;
-      } else if (pstate->found_registered_func_exit_addr(pc).has_value()) {
+      } else if (pstate_->found_registered_func_exit_addr(pc).has_value()) {
 #ifdef PROFILER_DEBUG
 /* pdebug("Exit PC: 0x%" PRIx64 "\n", pc); */
 #endif
@@ -240,7 +240,7 @@ int profiler_t::run() {
 #endif
       // TODO : What happens when we need to pop on when there is a context switch?
       // Can we guarantee that we can use the cur_pid?
-      pstate->pop_callstack(pstate->get_curpid());
+      pstate_->pop_callstack(pstate_->get_curpid());
     }
 
     if (rewind) {
@@ -261,16 +261,16 @@ int profiler_t::run() {
         processor_t* proc = get_core(0);
         state_t* state = proc->get_state();
         addr_t va = state->pc;
-        optreg_t opt_sa = pstate->found_registered_func_start_addr(va);
+        optreg_t opt_sa = pstate_->found_registered_func_start_addr(va);
 
         if (unlikely(opt_sa.has_value())) {
-          auto f = pstate->get_profile_func(opt_sa.value());
+          auto f = pstate_->get_profile_func(opt_sa.value());
 
           // TODO : This logic of returning a stack entry for certain
           // functions is not that pretty.
           opt_cs_entry_t entry = f->update_profiler(this);
           if (entry.has_value()) {
-            pstate->push_callstack(pstate->get_curpid(), entry.value());
+            pstate_->push_callstack(pstate_->get_curpid(), entry.value());
           }
           found_function = true;
         }
@@ -285,23 +285,19 @@ int profiler_t::run() {
       auto rewind_e = GET_TIME();
       MEASURE_AVG_TIME(rewind_s, rewind_e, rewind_us, rewind_cnt);
     }
-    pstate->incr_retired_insns((reg_t)pctrace.size());
-    submit_trace_to_threadpool(pctrace);
-    if ((uint32_t) packet_traces.size() >= PACKET_TRACE_FLUSH_THRESHOLD) {
-      submit_packet_trace_to_threadpool();
-      packet_traces.clear();
-    }
+    pstate_->incr_retired_insns((reg_t)pctrace.size());
+    logger_->submit_trace_to_threadpool(pctrace);
+    logger_->submit_packet_trace_to_threadpool();
   }
   auto run_e = GET_TIME();
   MEASURE_TIME(run_s, run_e, run_us);
 
-  submit_packet_trace_to_threadpool();
-  loggers.stop();
-  packet_loggers.stop();
+  logger_->flush_packet_trace_to_threadpool();
+  logger_->stop();
   auto rc = stop_sim();
 
   std::ofstream os("ASID-MAPPING", std::ofstream::out);
-  auto asid_to_bin = pstate->asid2bin();
+  auto asid_to_bin = pstate_->asid2bin();
   for (auto x : asid_to_bin) {
     os << x.first << " " << x.second << "\n";
   }
@@ -318,48 +314,15 @@ int profiler_t::run() {
   return rc;
 }
 
-std::string profiler_t::spiketrace_filename(uint64_t idx) {
-  std::string sfx;
-  if (idx < 10) {
-    sfx = "000000" + std::to_string(idx);
-  } else if (idx < 100) {
-    sfx = "00000" + std::to_string(idx);
-  } else if (idx < 1000) {
-    sfx = "0000" + std::to_string(idx);
-  } else if (idx < 10000) {
-    sfx = "000" + std::to_string(idx);
-  } else if (idx < 100000) {
-    sfx = "00" + std::to_string(idx);
-  } else if (idx < 1000000) {
-    sfx = "0" + std::to_string(idx);
-  } else {
-    sfx = std::to_string(idx);
-  }
-  return ("SPIKETRACE-" + sfx);
-}
-
-void profiler_t::submit_trace_to_threadpool(trace_t& trace) {
-  std::string name = prof_tracedir + "/" + spiketrace_filename(trace_idx);
-  ++trace_idx;
-  loggers.queue_job(print_insn_logs, trace, name);
-}
-
-void profiler_t::submit_packet(perfetto::packet_t pkt) {
-  packet_traces.push_back(pkt);
-}
-
-void profiler_t::submit_packet_trace_to_threadpool() {
-  packet_loggers.queue_job(print_event_logs, packet_traces, proflog_tp);
-}
-
 void profiler_t::process_callstack() {
   pprintf("Start stack unwinding\n");
 
   // FIXME : just increment cycle every insn
   uint64_t cycle = 0;
+  uint64_t trace_cnt = logger_->get_trace_idx();
 
-  for (uint64_t i = 0; i < trace_idx; i++) {
-    std::string path = prof_tracedir + "/" + spiketrace_filename(i);
+  for (uint64_t i = 0; i < trace_cnt; i++) {
+    std::string path = logger_->get_pctracedir() + "/" + logger_->spiketrace_filename(i);
     std::ifstream spike_trace = std::ifstream(path, std::ios::binary);
     if (!spike_trace) {
       pexit("%s does not exist\n", path.c_str());
@@ -374,7 +337,7 @@ void profiler_t::process_callstack() {
       uint64_t asid = std::stoull(words[1], &sz, 10);
       words.clear();
 
-      auto asid_to_bin = pstate->asid2bin();
+      auto asid_to_bin = pstate_->asid2bin();
       auto it = asid_to_bin.find(asid);
       if (user_space_addr(addr) && it != asid_to_bin.end()) {
         std::string binpath = it->second;

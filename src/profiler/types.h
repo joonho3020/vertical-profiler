@@ -29,18 +29,6 @@ namespace profiler {
   fflush(stdout);                                             \
   assert(false);
 
-#define __pprintlog(out, pfx, ...)                            \
-  fprintf(out, "[" pfx "] " __VA_ARGS__ );                     \
-  fflush(out);
-
-#define pprintlog(pfx, ...)                                   \
-  __pprintlog(p->get_prof_logfile(), pfx, __VA_ARGS__ );
-
-#define pprintall(pfx, ...)                                   \
-  pprintf( __VA_ARGS__ );                                     \
-  pprintlog(pfx, __VA_ARGS__ );
-
-
 /////////////////////////////////////////////////////
 // typedefs
 /////////////////////////////////////////////////////
