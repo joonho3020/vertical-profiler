@@ -44,8 +44,8 @@ public:
 
 private:
   std::map<addr_t, function_t*> prof_pc_to_func_;
-  std::vector<addr_t>         func_pc_prof_start_;
-  std::vector<addr_t>         func_pc_prof_exit_;
+  std::vector<addr_t> func_pc_prof_start_;
+  std::vector<addr_t> func_pc_prof_exit_;
 
   std::map<reg_t, std::vector<callstack_entry_t>> pid_to_callstack_;
   reg2str_t asid_to_bin_;
