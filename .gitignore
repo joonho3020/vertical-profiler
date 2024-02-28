@@ -6,3 +6,4 @@ test-io/test-binaries/linux-workloads
 prof/test
 *.log
 *.out
+**/__pycache__

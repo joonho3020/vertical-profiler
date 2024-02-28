@@ -1,11 +1,11 @@
 export ONE_PROF_BASE=$(pwd)
 
-export PATH="$PATH:$ONE_PROF_BASE/prof/fireperf"
-export PATH="$PATH:$ONE_PROF_BASE/prof/fireperf/FlameGraph"
+export PATH="$PATH:$ONE_PROF_BASE/src/fireperf"
+export PATH="$PATH:$ONE_PROF_BASE/src/fireperf/FlameGraph"
 export PATH="$PATH:$ONE_PROF_BASE/scripts"
 
 conda activate $ONE_PROF_BASE/chipyard/.conda-env
-export PROTOBUF_INSTALL_DIR=$ONE_PROF_BASE/prof/protobuf/install
+export PROTOBUF_INSTALL_DIR=$ONE_PROF_BASE/src/protobuf/install
 export PATH="$PROTOBUF_INSTALL_DIR/bin:$PATH"
 
 export GCC="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gcc"
