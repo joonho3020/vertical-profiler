@@ -73,7 +73,6 @@ public:
   virtual int run();
   void run_for(uint64_t steps);
   int run_from_trace();
-  int run_from_trace_fast();
 
   void init();
   bool target_running();
