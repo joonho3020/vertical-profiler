@@ -576,7 +576,8 @@ int main(int argc, char** argv)
   int return_code;
 
   if (rtl_lockstep) {
-    return_code = s.run_from_trace();
+/* return_code = s.run_from_trace(); */
+    return_code = s.run_from_trace_fast();
     if (!return_code)
       printf("Cospike ran successfully\n");
     else

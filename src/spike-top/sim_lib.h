@@ -32,6 +32,27 @@
 typedef std::map<char*, char*> pagemap;
 typedef std::vector<char*>     pagepool;
 
+struct rtl_step_t {
+  bool val;
+  uint64_t time;
+  uint64_t pc;
+  uint64_t insn;
+  bool except;
+  bool intrpt;
+  int cause;
+  bool has_w;
+  uint64_t wdata;
+  int priv;
+
+  rtl_step_t(bool val, uint64_t time, uint64_t pc, uint64_t insn,
+      bool except, bool intrpt, int cause, bool has_w, uint64_t wdata,
+      int priv)
+    : val(val), time(time), pc(pc), insn(insn), except(except),
+    intrpt(intrpt), cause(cause), has_w(has_w), wdata(wdata), priv(priv)
+  {
+  }
+};
+
 class sim_lib_t : public sim_t
 {
 public:
@@ -52,6 +73,7 @@ public:
   virtual int run();
   void run_for(uint64_t steps);
   int run_from_trace();
+  int run_from_trace_fast();
 
   void init();
   bool target_running();
@@ -92,9 +114,8 @@ public:
     return dynamic_cast<processor_lib_t*>(procs.at(i)); 
   }
 
-  bool ganged_step(bool val, uint64_t time, uint64_t pc, uint64_t insn,
-                   bool except, bool intrpt, int cause, bool has_w,
-                   uint64_t wdata, int priv, int hartid);
+  rtl_step_t parse_line_into_rtltrace(std::string line);
+  bool ganged_step(rtl_step_t step, int hartid);
 
 private:
   friend class processor_t;
