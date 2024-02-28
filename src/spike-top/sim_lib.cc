@@ -305,9 +305,8 @@ void sim_lib_t::init() {
 
 void sim_lib_t::run_for(uint64_t steps) {
   uint64_t tot_step = 0;
-  bool stalled = false;
 
-  while (target_running() && tot_step < steps && !stalled) {
+  while (target_running() && tot_step < steps) {
     uint64_t tohost_req = check_tohost_req();
     if (tohost_req) {
       handle_tohost_req(tohost_req);
@@ -320,10 +319,6 @@ void sim_lib_t::run_for(uint64_t steps) {
         auto pst = plib->step_trace();
         target_trace.insert(target_trace.end(), pst.begin(), pst.end());
         tot_step += pst.size();
-        if (pst.size() == 0) {
-          stalled = true;
-          break;
-        }
       }
     }
     send_fromhost_req();
@@ -645,18 +640,18 @@ void sim_lib_t::deserialize_proto(std::string& msg) {
 
 }
 
-bool sim_lib_t::ganged_step(rtl_step_t step, int hartid) {
-  bool val       = step.val;
-  uint64_t time  = step.time;
-  uint64_t pc    = step.pc;
-  uint64_t insn  = step.insn;
-  bool except    = step.except;
-  bool intrpt    = step.intrpt;
-  int cause      = step.cause;
-  bool has_w     = step.has_w;
-  uint64_t wdata = step.wdata;
-  int priv       = step.priv;
-
+bool sim_lib_t::ganged_step(
+    bool     val,
+    uint64_t time,
+    uint64_t pc,
+    uint64_t insn,
+    bool     except,
+    bool     intrpt,
+    int      cause,
+    bool     has_w,
+    uint64_t wdata,
+    int      priv,
+    int      hartid) {
   std::set<reg_t> magic_addrs;
 
   processor_t* proc = get_core(hartid);
@@ -889,29 +884,11 @@ bool sim_lib_t::ganged_step(rtl_step_t step, int hartid) {
   return true;
 }
 
-rtl_step_t sim_lib_t::parse_line_into_rtltrace(std::string line) {
-  std::vector<std::string> words;
-  split(words, line);
-
-  bool     val    = strtoul (words[1].c_str(), NULL, 10);
-  uint64_t time   = strtoull(words[0].c_str(), NULL, 10);
-  uint64_t pc     = strtoull(words[2].substr(2).c_str(), NULL, 16);
-  uint64_t insn   = strtoull(words[3].substr(2).c_str(), NULL, 16);
-  bool     except = strtoul (words[4].c_str(),  NULL, 10);
-  bool     intrpt = strtoul (words[5].c_str(), NULL, 10);
-  int      cause  = strtoul (words[6].c_str(), NULL, 10);
-  bool     has_w  = strtoul (words[7].c_str(), NULL, 10);
-  uint64_t wdata  = strtoull(words[8].substr(2).c_str(), NULL, 16);
-  int      priv   = strtoul (words[9].c_str(), NULL, 10);
-
-  return rtl_step_t(val, time, pc, insn,
-                     except, intrpt, cause, has_w, wdata, priv);
-}
-
 int sim_lib_t::run_from_trace() {
   printf("device cnt: %d\n", devices.size());
   assert(rtl_tracefile_name);
   std::string line;
+  std::vector<std::string> words;
   std::string tracefile_string = std::string(rtl_tracefile_name);
   std::ifstream rtl_trace = std::ifstream(tracefile_string, std::ios::binary);
 
@@ -921,76 +898,28 @@ int sim_lib_t::run_from_trace() {
   this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
 
   while (std::getline(rtl_trace, line)) {
+    split(words, line);
+
     uint64_t tohost_req = check_tohost_req();
     if (tohost_req)
       handle_tohost_req(tohost_req);
 
-    rtl_step_t step = parse_line_into_rtltrace(line);
-    ganged_step(step, hartid);
-  }
-  return 0;
-}
+    bool     val    = strtoul (words[1].c_str(), NULL, 10);
+    uint64_t time   = strtoull(words[0].c_str(), NULL, 10);
+    uint64_t pc     = strtoull(words[2].substr(2).c_str(), NULL, 16);
+    uint64_t insn   = strtoull(words[3].substr(2).c_str(), NULL, 16);
+    bool     except = strtoul (words[4].c_str(),  NULL, 10);
+    bool     intrpt = strtoul (words[5].c_str(), NULL, 10);
+    int      cause  = strtoul (words[6].c_str(), NULL, 10);
+    bool     has_w  = strtoul (words[7].c_str(), NULL, 10);
+    uint64_t wdata  = strtoull(words[8].substr(2).c_str(), NULL, 16);
+    int      priv   = strtoul (words[9].c_str(), NULL, 10);
 
-int sim_lib_t::run_from_trace_fast() {
-  printf("device cnt: %d\n", devices.size());
-  assert(rtl_tracefile_name);
-  std::string line;
-  std::vector<std::string> words;
-  std::string tracefile_string = std::string(rtl_tracefile_name);
-  std::ifstream rtl_trace = std::ifstream(tracefile_string, std::ios::binary);
+    ganged_step(val, time, pc, insn,
+                except, intrpt, cause, has_w,
+                wdata, priv, hartid);
 
-  // TODO : multicore support
-  int hartid = 0;
-  this->configure_log(true, true);
-  this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
-
-  std::vector<rtl_step_t> prev_rtl_steps;
-
-  size_t INSN_PER_CKPT = 1000;
-
-  while (target_running()) {
-    std::string protobuf;
-    serialize_proto(protobuf);
-    this->clear_run_trace();
-    this->run_for(INSN_PER_CKPT);
-
-    bool rewind = false;
-    trace_t pctrace = this->run_trace();
-    prev_rtl_steps.clear();
-
-    for (size_t i = 0, cnt = pctrace.size(); i < cnt; i++) {
-      if (std::getline(rtl_trace, line)) {
-        rtl_step_t step = parse_line_into_rtltrace(line);
-        prev_rtl_steps.push_back(step);
-        if (pctrace[i].pc != step.pc) {
-/* printf("rtl.pc: 0x%" PRIx64 " spike.pc: 0x%" PRIx64 "\n", */
-/* step.pc, pctrace[i].pc); */
-          rewind = true;
-          break;
-        }
-      } else {
-        // Not enough instructions in the rtl trace
-        rewind = true;
-      }
-    }
-
-    if (rewind) {
-      deserialize_proto(protobuf);
-      this->clear_run_trace();
-      for (auto& s : prev_rtl_steps) {
-        uint64_t tohost_req = check_tohost_req();
-        if (tohost_req)
-          handle_tohost_req(tohost_req);
-        this->ganged_step(s, hartid);
-      }
-    } else {
-      for (auto& s : prev_rtl_steps) {
-        if (s.val || s.except || s.intrpt) {
-          processor_t* proc = this->get_core(hartid);
-          proc->clear_waiting_for_interrupt();
-        }
-      }
-    }
+    words.clear();
   }
   return 0;
 }
