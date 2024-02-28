@@ -27,7 +27,6 @@ private:
   uint64_t timestamp;
 };
 
-
 class event_trace_t {
 public:
   event_trace_t(std::string ofname);

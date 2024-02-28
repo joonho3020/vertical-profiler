@@ -51,7 +51,7 @@ public:
 
   virtual int run();
   void run_for(uint64_t steps);
-  int run_from_trace(uint64_t ckpt_step);
+  int run_from_trace();
 
   void init();
   bool target_running();
@@ -92,6 +92,10 @@ public:
     return dynamic_cast<processor_lib_t*>(procs.at(i)); 
   }
 
+  bool ganged_step(bool val, uint64_t time, uint64_t pc, uint64_t insn,
+                   bool except, bool intrpt, int cause, bool has_w,
+                   uint64_t wdata, int priv, int hartid);
+
 private:
   friend class processor_t;
   friend class mmu_t;
@@ -110,7 +114,9 @@ private:
   size_t   ROCKETCHIP_BOOTROM_BASE  = 0x10000;
   size_t   ROCKETCHIP_BOOTROM_SIZE  = 0x10000;
   size_t   ROCKETCHIP_BOOTADDR_BASE = 0x1000;
-  uint64_t ROCKETCHIP_BOOTADDR      = 0x80000000;
+  uint64_t ROCKETCHIP_BOOTADDR      = 0x80000000LL;
+  uint64_t ROCKETCHIP_MEM0_BASE     = 0x80000000LL;
+  uint64_t ROCKETCHIP_MEM0_SIZE     = 0x400000000LL;
   std::vector<char> firesim_bootrom = {
     23, 5, 0, 0, 19, 5, 5, 4, 115, 16, 85, 48, -13, 34, 16, 48, -109, -46, 34, 65, -109, -14, 18, 0, 99, -124, 2, 0, 115, 16, 48, 48,
       19, 5, -128, 0, 115, 16, 69, 48, 115, 32, 5, 48, 115, 0, 80, 16, 111, -16, -33, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

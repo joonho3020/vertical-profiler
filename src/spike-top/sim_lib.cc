@@ -640,64 +640,269 @@ void sim_lib_t::deserialize_proto(std::string& msg) {
 
 }
 
+bool sim_lib_t::ganged_step(
+    bool     val,
+    uint64_t time,
+    uint64_t pc,
+    uint64_t insn,
+    bool     except,
+    bool     intrpt,
+    int      cause,
+    bool     has_w,
+    uint64_t wdata,
+    int      priv,
+    int      hartid) {
+  std::set<reg_t> magic_addrs;
 
-int sim_lib_t::run_from_trace(uint64_t ckpt_step) {
+  processor_t* proc = get_core(hartid);
+  state_t* s = proc->get_state();
+  uint64_t s_pc = s->pc;
+
+  uint64_t interrupt_cause = cause & 0x7FFFFFFFFFFFFFFF;
+  bool ssip_interrupt = interrupt_cause == 0x1;
+  bool msip_interrupt = interrupt_cause == 0x3;
+  bool stip_interrupt = interrupt_cause == 0x5;
+  bool mtip_interrupt = interrupt_cause == 0x7;
+  bool seip_interrupt = interrupt_cause == 0x9;
+  bool debug_interrupt = interrupt_cause == 0xe;
+
+  // If the interrupt is set in RTL sim...
+  if (intrpt) {
+    if (ssip_interrupt || stip_interrupt) {
+      // do nothing
+    } else if (msip_interrupt) {
+      s->mip->backdoor_write_with_mask(MIP_MSIP, MIP_MSIP);
+    } else if (mtip_interrupt) {
+      s->mip->backdoor_write_with_mask(MIP_MTIP, MIP_MTIP);
+    } else if (debug_interrupt) {
+      // don't execute instructions
+    } else if (seip_interrupt) {
+      bool has_pending_interrupt = this->plic->alert_core_external_interrupt(hartid);
+      if (!has_pending_interrupt) {
+        printf("Spike does not have any pending interrupts\n");
+        printf("TRACE time: %" PRIu64 " v: %d pc: 0x%" PRIx64 " insn: 0x%" PRIx64 " e: %d i: %d c: %d hw: %d wd: %" PRIu64 " prv: %d\n",
+            time, val, pc, insn, except, intrpt, cause, has_w, wdata, priv);
+        return false;
+      }
+    } else {
+      printf("Unknown interrupt\n");
+      printf("TRACE time: %" PRIu64 " v: %d pc: 0x%" PRIx64 " insn: 0x%" PRIx64 " e: %d i: %d c: %d hw: %d wd: %" PRIu64 " prv: %d\n",
+          time, val, pc, insn, except, intrpt, cause, has_w, wdata, priv);
+      return false;
+    }
+  }
+
+  // WFI instructions are noops in RTL.
+  // To avoid executing wfi instruction multiple times in functional sim,
+  // we want to clear the wfi signal.
+  if (val || except || intrpt) {
+    for (auto& d : ganged_devs)
+      d.get()->was_read = false;
+
+    // ignore clint
+    for (int i = 1, cnt = devices.size(); i < cnt; i++) {
+      auto& d = devices[i];
+      d->tick(1);
+    }
+
+    proc->clear_waiting_for_interrupt();
+    proc->step(1);
+  }
+
+  if (val && !except) {
+    if (s_pc != pc) {
+      printf("!!!!!!!!!!!! %lld PC mismatch spike %lx != DUT %llx\n", time, s->pc, pc);
+      printf("spike mstatus is %lx\n", s->mstatus->read());
+      printf("spike mcause is %lx\n", s->mcause->read());
+      printf("spike mtval is %lx\n" , s->mtval->read());
+      printf("spike mtinst is %lx\n", s->mtinst->read());
+      printf("spike mepc is %lx\n", s->mepc->read());
+      printf("spike mtvec is %lx\n", s->mtvec->read());
+      for (int i = 0; i < NXPR; i++) {
+        printf("r %2d = 0x%" PRIx64 "\n", i, s->XPR[i]);
+      }
+      return false;
+    }
+
+    auto& mem_write = s->log_mem_write;
+    auto& log = s->log_reg_write;
+    auto& mem_read = s->log_mem_read;
+
+    for (auto memwrite : mem_write) {
+      reg_t waddr = std::get<0>(memwrite);
+      uint64_t w_data = std::get<1>(memwrite);
+
+      // If the store address matches the CLINT, lower the interrupt signal
+      if ((waddr == CLINT_BASE + 4*hartid) && w_data == 0) {
+        s->mip->backdoor_write_with_mask(MIP_MSIP, 0);
+      }
+      if ((waddr == CLINT_BASE + 0x4000 + 4*hartid)) {
+        s->mip->backdoor_write_with_mask(MIP_MTIP, 0);
+      }
+
+      // Try to remember magic_mem addrs, and ignore these in the future
+      if (waddr == tohost_addr &&
+          w_data >= ROCKETCHIP_MEM0_BASE &&
+          w_data < (ROCKETCHIP_MEM0_BASE + ROCKETCHIP_MEM0_SIZE)) {
+        magic_addrs.insert(w_data);
+      }
+
+#ifdef DEBUG_MEMWRITES
+      auto mmu = proc->get_mmu();
+      reg_t paddr = mmu->translate(
+          mmu->generate_access_info(
+            waddr,
+            STORE,
+            {false, false, false}),
+          std::get<2>(memwrite));
+      printf("TRACE memwrite paddr: 0x%" PRIx64 " w_data: 0x%" PRIx64 " time: %" PRIu64 " v: %d pc: 0x%" PRIx64 " insn: 0x%" PRIx64 " e: %d i: %d c: %d hw: %d wd: %" PRIu64 " prv: %d\n",
+          paddr, w_data, time, val, pc, insn, except, intrpt, cause, has_w, wdata, priv);
+#endif
+    }
+
+    bool scalar_wb = false;
+    bool vector_wb = false;
+    uint32_t vector_cnt = 0;
+    std::vector<reg_t> vector_rds;
+    for (auto &regwrite : log) {
+
+      //TODO: scaling to multi issue reads?
+      reg_t mem_read_addr = mem_read.empty() ? 0 : std::get<0>(mem_read[0]);
+      reg_t mem_read_size = mem_read.empty() ? 0 : std::get<2>(mem_read[0]);
+
+      int rd = regwrite.first >> 4;
+      int type = regwrite.first & 0xf;
+
+      // 0 => int
+      // 1 => fp
+      // 2 => vec
+      // 3 => vec hint
+      // 4 => csr
+      bool device_read = false;
+      for (auto& d : ganged_devs) if (d.get()->was_read) device_read = true;
+
+      bool lr_read = ((insn & MASK_LR_D) == MATCH_LR_D) || ((insn & MASK_LR_W) == MATCH_LR_W);
+      bool sc_read = ((insn & MASK_SC_D) == MATCH_SC_D) || ((insn & MASK_SC_W) == MATCH_SC_W);
+
+      bool ignore_read = device_read || sc_read || (!mem_read.empty() &&
+          (magic_addrs.count(mem_read_addr) ||
+           lr_read ||
+           (tohost_addr && mem_read_addr == tohost_addr) ||
+           (fromhost_addr && mem_read_addr == fromhost_addr)));
+
+      // check the type is compliant with writeback first
+      if ((type == 0 || type == 1))
+        scalar_wb = true;
+      if (type == 2) {
+        vector_rds.push_back(rd);
+        vector_wb = true;
+      }
+      if (type == 3) continue;
+
+      if ((rd != 0 && type == 0) || type == 1) {
+        // Override reads from some CSRs
+        uint64_t csr_addr = (insn >> 20) & 0xfff;
+        bool csr_read = (insn & 0x7f) == 0x73;
+#ifdef DEBUG
+        if (csr_read)
+          printf("CSR read %lx\n", csr_addr);
+#endif
+        if (csr_read && (
+              (csr_addr == CSR_MISA)       ||
+              (csr_addr == CSR_MCOUNTEREN) ||
+              (csr_addr == CSR_MCAUSE)     ||
+              (csr_addr == CSR_MTVAL)     ||
+              (csr_addr == CSR_MIMPID)     ||
+              (csr_addr == CSR_MARCHID)    ||
+              (csr_addr == CSR_MVENDORID)  ||
+              (csr_addr == CSR_MCYCLE)     ||
+              (csr_addr == CSR_MINSTRET)   ||
+              (csr_addr == CSR_CYCLE)      ||
+              (csr_addr == CSR_TIME)       ||
+              (csr_addr == CSR_INSTRET)    ||
+              (csr_addr == CSR_SATP)    ||
+              (csr_addr >= CSR_TSELECT && csr_addr <= CSR_MCONTEXT) ||
+              (csr_addr >= CSR_PMPADDR0 && csr_addr <= CSR_PMPADDR63)
+              )) {
+/* #define DEBUG_READ_OVERRIDE */
+#ifdef DEBUG_READ_OVERRIDE
+          printf("CSR override: %" PRIu64 "\n", time);
+#endif
+          s->XPR.write(rd, wdata);
+        } else if (ignore_read)  {
+          // Don't check reads from tohost, reads from magic memory, or reads
+          // from clint Technically this could be buggy because log_mem_read
+          // only reports vaddrs, but no software ever should access
+          // tohost/fromhost/clint with vaddrs anyways
+/* #define DEBUG_READ_OVERRIDE */
+#ifdef DEBUG_READ_OVERRIDE
+          if (sc_read)
+            printf("Ignoring SC reads\n");
+          if (!mem_read.empty()) {
+            if (magic_addrs.count(mem_read_addr))
+              printf("Reading from magic memory\n");
+            if (device_read)
+              printf("Reading from MMIO device\n");
+            if (lr_read)
+              printf("Reading from LR\n");
+            if (mem_read_addr == tohost_addr)
+              printf("Reading from tohost\n");
+            if (mem_read_addr == fromhost_addr)
+              printf("Reading from fromhost\n");
+          }
+          printf("cy: %" PRIu64 " Read override mem[%lx] %llx -> %llx\n",
+              time, mem_read_addr, s->XPR[rd], wdata);
+#endif
+          s->XPR.write(rd, wdata);
+        } else if ((type == 0) && (wdata != regwrite.second.v[0])) {
+          printf("%" PRIu64 " Int wdata mismatch: spike 0x%" PRIx64 " fsim 0x%" PRIx64 "\n",
+              time, regwrite.second.v[0], wdata);
+
+          printf("TRACE time: %" PRIu64 " v: %d pc: 0x%" PRIx64 " insn: 0x%" PRIx64 " e: %d i: %d c: %d hw: %d wd: %" PRIu64 " prv: %d\n",
+              time, val, pc, insn, except, intrpt, cause, has_w, wdata, priv);
+
+          // If it is a load instruction and the writeback value doesn't match
+          if (mem_read_addr != 0) {
+            auto mmu = proc->get_mmu();
+            reg_t paddr = mmu->translate(
+                mmu->generate_access_info(
+                  mem_read_addr,
+                  LOAD,
+                  {false, false, false}),
+                mem_read_size);
+            printf("paddr: 0x%" PRIx64 "\n", paddr);
+          }
+          return false;
+        } else if ((type == 1) && (wdata != regwrite.second.v[0])) {
+          printf("%" PRIu64 " FP wdata mismatch: spike %" PRIu64 " fsim %" PRIu64 "\n",
+              time, regwrite.second.v[0], wdata);
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+int sim_lib_t::run_from_trace() {
   printf("device cnt: %d\n", devices.size());
   assert(rtl_tracefile_name);
   std::string line;
   std::vector<std::string> words;
-  std::set<reg_t> magic_addrs;
   std::string tracefile_string = std::string(rtl_tracefile_name);
   std::ifstream rtl_trace = std::ifstream(tracefile_string, std::ios::binary);
 
+  // TODO : multicore support
   int hartid = 0;
   this->configure_log(true, true);
   this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
 
-  uint64_t cntr = 0;
-  uint64_t skip = ckpt_step;
   while (std::getline(rtl_trace, line)) {
-    ++cntr;
-    if (cntr < skip) {
-      continue;
-    } else if (cntr == skip && (skip > 0)) {
-      printf("Start deserializing checkpoint\n");
-
-      std::fstream ckpt_file;
-      std::string ofname = "spike-ckpt-" + std::to_string(skip) + ".out";
-      ckpt_file.open(ofname, std::ios::in);
-      if (!ckpt_file) {
-        printf("checkpoint file not opened\n");
-        return 1;
-      }
-
-      std::stringstream strStream;
-      strStream << ckpt_file.rdbuf();
-      std::string proto_ckpt = strStream.str();
-      this->deserialize_proto(proto_ckpt);
-    } else if (cntr % (100 * 1000 * 1000) == 0) {
-      std::string proto_ckpt;
-      this->serialize_proto(proto_ckpt);
-
-      std::fstream ckpt_file;
-      std::string ofname = "spike-ckpt-" + std::to_string(cntr) + ".out";
-      ckpt_file.open(ofname, std::ios::out);
-      if (!ckpt_file) {
-        printf("checkpoint file not created\n");
-        return 1;
-      }
-      ckpt_file << proto_ckpt;
-      ckpt_file.close();
-    }
-
     split(words, line);
 
     uint64_t tohost_req = check_tohost_req();
     if (tohost_req)
       handle_tohost_req(tohost_req);
-
-    uint64_t mem0_base = 0x80000000LL;
-    uint64_t mem0_size = 0x400000000LL;
 
     bool     val    = strtoul (words[1].c_str(), NULL, 10);
     uint64_t time   = strtoull(words[0].c_str(), NULL, 10);
@@ -710,245 +915,10 @@ int sim_lib_t::run_from_trace(uint64_t ckpt_step) {
     uint64_t wdata  = strtoull(words[8].substr(2).c_str(), NULL, 16);
     int      priv   = strtoul (words[9].c_str(), NULL, 10);
 
-/* #define DEBUG_XCPT_INTER */
-#ifdef DEBUG_XCPT_INTER
-    if (except || intrpt) {
-      printf("TRACE time: %" PRIu64 " v: %d pc: 0x%" PRIx64 " insn: 0x%" PRIx64 " e: %d i: %d c: %d hw: %d wd: %" PRIu64 " prv: %d\n",
-          time, val, pc, insn, except, intrpt, cause, has_w, wdata, priv);
-    }
-#endif
+    ganged_step(val, time, pc, insn,
+                except, intrpt, cause, has_w,
+                wdata, priv, hartid);
 
-    processor_t* proc = get_core(hartid);
-    state_t* s = proc->get_state();
-    uint64_t s_pc = s->pc;
-
-    uint64_t interrupt_cause = cause & 0x7FFFFFFFFFFFFFFF;
-    bool ssip_interrupt = interrupt_cause == 0x1;
-    bool msip_interrupt = interrupt_cause == 0x3;
-    bool stip_interrupt = interrupt_cause == 0x5;
-    bool mtip_interrupt = interrupt_cause == 0x7;
-    bool seip_interrupt = interrupt_cause == 0x9;
-    bool debug_interrupt = interrupt_cause == 0xe;
-
-    // If the interrupt is set in RTL sim...
-    if (intrpt) {
-      if (ssip_interrupt || stip_interrupt) {
-        // do nothing
-      } else if (msip_interrupt) {
-        s->mip->backdoor_write_with_mask(MIP_MSIP, MIP_MSIP);
-      } else if (mtip_interrupt) {
-        s->mip->backdoor_write_with_mask(MIP_MTIP, MIP_MTIP);
-      } else if (debug_interrupt) {
-        // don't execute instructions
-      } else if (seip_interrupt) {
-        bool has_pending_interrupt = this->plic->alert_core_external_interrupt(hartid);
-        if (!has_pending_interrupt) {
-          printf("Spike does not have any pending interrupts\n");
-          printf("TRACE time: %" PRIu64 " v: %d pc: 0x%" PRIx64 " insn: 0x%" PRIx64 " e: %d i: %d c: %d hw: %d wd: %" PRIu64 " prv: %d\n",
-              time, val, pc, insn, except, intrpt, cause, has_w, wdata, priv);
-          return 1;
-        }
-      } else {
-        printf("Unknown interrupt\n");
-        printf("TRACE time: %" PRIu64 " v: %d pc: 0x%" PRIx64 " insn: 0x%" PRIx64 " e: %d i: %d c: %d hw: %d wd: %" PRIu64 " prv: %d\n",
-            time, val, pc, insn, except, intrpt, cause, has_w, wdata, priv);
-        return 1;
-      }
-    }
-
-    // WFI instructions are noops in RTL.
-    // To avoid executing wfi instruction multiple times in functional sim,
-    // we want to clear the wfi signal.
-    if (val || except || intrpt) {
-      for (auto& d : ganged_devs)
-        d.get()->was_read = false;
-
-      // ignore clint
-      for (int i = 1, cnt = devices.size(); i < cnt; i++) {
-        auto& d = devices[i];
-        d->tick(1);
-      }
-
-      proc->clear_waiting_for_interrupt();
-      proc->step(1);
-    }
-
-    if (val && !except) {
-      if (s_pc != pc) {
-        printf("!!!!!!!!!!!! %lld PC mismatch spike %lx != DUT %llx\n", time, s->pc, pc);
-        printf("spike mstatus is %lx\n", s->mstatus->read());
-        printf("spike mcause is %lx\n", s->mcause->read());
-        printf("spike mtval is %lx\n" , s->mtval->read());
-        printf("spike mtinst is %lx\n", s->mtinst->read());
-        printf("spike mepc is %lx\n", s->mepc->read());
-        printf("spike mtvec is %lx\n", s->mtvec->read());
-        for (int i = 0; i < NXPR; i++) {
-          printf("r %2d = 0x%" PRIx64 "\n", i, s->XPR[i]);
-        }
-        return 1;
-        exit(1);
-      }
-
-      auto& mem_write = s->log_mem_write;
-      auto& log = s->log_reg_write;
-      auto& mem_read = s->log_mem_read;
-
-      for (auto memwrite : mem_write) {
-        reg_t waddr = std::get<0>(memwrite);
-        uint64_t w_data = std::get<1>(memwrite);
-
-        // If the store address matches the CLINT, lower the interrupt signal
-        if ((waddr == CLINT_BASE + 4*hartid) && w_data == 0) {
-          s->mip->backdoor_write_with_mask(MIP_MSIP, 0);
-        }
-        if ((waddr == CLINT_BASE + 0x4000 + 4*hartid)) {
-          s->mip->backdoor_write_with_mask(MIP_MTIP, 0);
-        }
-
-        // Try to remember magic_mem addrs, and ignore these in the future
-        if (waddr == tohost_addr &&
-            w_data >= mem0_base &&
-            w_data < (mem0_base + mem0_size)) {
-          magic_addrs.insert(w_data);
-        }
-
-#ifdef DEBUG_MEMWRITES
-        auto mmu = proc->get_mmu();
-        reg_t paddr = mmu->translate(
-            mmu->generate_access_info(
-              waddr,
-              STORE,
-              {false, false, false}),
-            std::get<2>(memwrite));
-        printf("TRACE memwrite paddr: 0x%" PRIx64 " w_data: 0x%" PRIx64 " time: %" PRIu64 " v: %d pc: 0x%" PRIx64 " insn: 0x%" PRIx64 " e: %d i: %d c: %d hw: %d wd: %" PRIu64 " prv: %d\n",
-            paddr, w_data, time, val, pc, insn, except, intrpt, cause, has_w, wdata, priv);
-#endif
-      }
-
-      bool scalar_wb = false;
-      bool vector_wb = false;
-      uint32_t vector_cnt = 0;
-      std::vector<reg_t> vector_rds;
-      for (auto &regwrite : log) {
-
-        //TODO: scaling to multi issue reads?
-        reg_t mem_read_addr = mem_read.empty() ? 0 : std::get<0>(mem_read[0]);
-        reg_t mem_read_size = mem_read.empty() ? 0 : std::get<2>(mem_read[0]);
-
-        int rd = regwrite.first >> 4;
-        int type = regwrite.first & 0xf;
-
-        // 0 => int
-        // 1 => fp
-        // 2 => vec
-        // 3 => vec hint
-        // 4 => csr
-        bool device_read = false;
-        for (auto& d : ganged_devs) if (d.get()->was_read) device_read = true;
-
-        bool lr_read = ((insn & MASK_LR_D) == MATCH_LR_D) || ((insn & MASK_LR_W) == MATCH_LR_W);
-        bool sc_read = ((insn & MASK_SC_D) == MATCH_SC_D) || ((insn & MASK_SC_W) == MATCH_SC_W);
-
-        bool ignore_read = device_read || sc_read || (!mem_read.empty() &&
-            (magic_addrs.count(mem_read_addr) ||
-             lr_read ||
-             (tohost_addr && mem_read_addr == tohost_addr) ||
-             (fromhost_addr && mem_read_addr == fromhost_addr)));
-
-/* printf("ignore read: %d mem_read.empty: %d sc_read: %d device_read: %d\n", */
-/* ignore_read, mem_read.empty(), sc_read, device_read); */
-
-        //COSPIKE_PRINTF("register write type %d\n", type);
-        // check the type is compliant with writeback first
-        if ((type == 0 || type == 1))
-          scalar_wb = true;
-        if (type == 2) {
-          vector_rds.push_back(rd);
-          vector_wb = true;
-        }
-        if (type == 3) continue;
-
-        if ((rd != 0 && type == 0) || type == 1) {
-          // Override reads from some CSRs
-          uint64_t csr_addr = (insn >> 20) & 0xfff;
-          bool csr_read = (insn & 0x7f) == 0x73;
-#ifdef DEBUG
-          if (csr_read)
-            printf("CSR read %lx\n", csr_addr);
-#endif
-          if (csr_read && (
-                (csr_addr == CSR_MISA)       ||
-                (csr_addr == CSR_MCOUNTEREN) ||
-                (csr_addr == CSR_MCAUSE)     ||
-                (csr_addr == CSR_MTVAL)     ||
-                (csr_addr == CSR_MIMPID)     ||
-                (csr_addr == CSR_MARCHID)    ||
-                (csr_addr == CSR_MVENDORID)  ||
-                (csr_addr == CSR_MCYCLE)     ||
-                (csr_addr == CSR_MINSTRET)   ||
-                (csr_addr == CSR_CYCLE)      ||
-                (csr_addr == CSR_TIME)       ||
-                (csr_addr == CSR_INSTRET)    ||
-                (csr_addr == CSR_SATP)    ||
-                (csr_addr >= CSR_TSELECT && csr_addr <= CSR_MCONTEXT) ||
-                (csr_addr >= CSR_PMPADDR0 && csr_addr <= CSR_PMPADDR63)
-                )) {
-/* #define DEBUG_READ_OVERRIDE */
-#ifdef DEBUG_READ_OVERRIDE
-            printf("CSR override: %" PRIu64 "\n", time);
-#endif
-            s->XPR.write(rd, wdata);
-          } else if (ignore_read)  {
-            // Don't check reads from tohost, reads from magic memory, or reads
-            // from clint Technically this could be buggy because log_mem_read
-            // only reports vaddrs, but no software ever should access
-            // tohost/fromhost/clint with vaddrs anyways
-/* #define DEBUG_READ_OVERRIDE */
-#ifdef DEBUG_READ_OVERRIDE
-            if (sc_read)
-              printf("Ignoring SC reads\n");
-            if (!mem_read.empty()) {
-              if (magic_addrs.count(mem_read_addr))
-                printf("Reading from magic memory\n");
-              if (device_read)
-                printf("Reading from MMIO device\n");
-              if (lr_read)
-                printf("Reading from LR\n");
-              if (mem_read_addr == tohost_addr)
-                printf("Reading from tohost\n");
-              if (mem_read_addr == fromhost_addr)
-                printf("Reading from fromhost\n");
-            }
-            printf("cy: %" PRIu64 " Read override mem[%lx] %llx -> %llx\n",
-                time, mem_read_addr, s->XPR[rd], wdata);
-#endif
-            s->XPR.write(rd, wdata);
-          } else if ((type == 0) && (wdata != regwrite.second.v[0])) {
-            printf("%" PRIu64 " Int wdata mismatch: spike 0x%" PRIx64 " fsim 0x%" PRIx64 "\n",
-                time, regwrite.second.v[0], wdata);
-
-            printf("TRACE time: %" PRIu64 " v: %d pc: 0x%" PRIx64 " insn: 0x%" PRIx64 " e: %d i: %d c: %d hw: %d wd: %" PRIu64 " prv: %d\n",
-                time, val, pc, insn, except, intrpt, cause, has_w, wdata, priv);
-
-            // If it is a load instruction and the writeback value doesn't match
-            if (mem_read_addr != 0) {
-              auto mmu = proc->get_mmu();
-              reg_t paddr = mmu->translate(
-                  mmu->generate_access_info(
-                    mem_read_addr,
-                    LOAD,
-                    {false, false, false}),
-                  mem_read_size);
-              printf("paddr: 0x%" PRIx64 "\n", paddr);
-            }
-            return 1;
-          } else if ((type == 1) && (wdata != regwrite.second.v[0])) {
-            printf("%" PRIu64 " FP wdata mismatch: spike %" PRIu64 " fsim %" PRIu64 "\n",
-                time, regwrite.second.v[0], wdata);
-          }
-        }
-      }
-    }
     words.clear();
   }
   return 0;
