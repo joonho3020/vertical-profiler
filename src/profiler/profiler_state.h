@@ -30,8 +30,8 @@ public:
   void  set_curpid(reg_t pid);
   reg_t get_curpid();
 
-  void incr_retired_insns(reg_t amount);
-  reg_t get_insn_retired();
+  reg_t get_timestamp();
+  void  update_timestamp(reg_t val);
 
   std::vector<callstack_entry_t>& get_callstack(reg_t pid);
   void pop_callstack (reg_t pid);
@@ -66,7 +66,7 @@ private:
 
   // TODO : We are using this as a replacement for "cycle" in the functional only mode.
   // Replace this with the actual timing information in the RTL driven mode.
-  reg_t insn_retired_ = 0;
+  reg_t timestamp_ = 0;
 };
 
 }; // namespace profiler

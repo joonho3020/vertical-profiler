@@ -70,7 +70,7 @@ opt_cs_entry_t kf_do_execveat_common::update_profiler(profiler_t* p) {
   p->logger()->submit_packet(perfetto::packet_t(
         std::string(k_do_execveat_common),
         perfetto::TYPE_INSTANT,
-        p->pstate()->get_insn_retired()));
+        p->pstate()->get_timestamp()));
 
   return callstack_entry_t(k_do_execveat_common, filepath);
 }
@@ -125,7 +125,7 @@ opt_cs_entry_t kf_set_mm_asid::update_profiler(profiler_t* p) {
     p->logger()->submit_packet(perfetto::packet_t(
           std::string(k_set_mm_asid),
           perfetto::TYPE_INSTANT,
-          p->pstate()->get_insn_retired()));
+          p->pstate()->get_timestamp()));
 
     if (pid != p->pstate()->get_curpid()) {
       pexit("%d Prof internal pid: %u, spike pid: %u\n",
@@ -169,7 +169,7 @@ opt_cs_entry_t kf_kernel_clone::update_profiler(profiler_t* p) {
   p->logger()->submit_packet(perfetto::packet_t(
         std::string(k_kernel_clone),
         perfetto::TYPE_INSTANT,
-        p->pstate()->get_insn_retired()));
+        p->pstate()->get_timestamp()));
 
   return {};
 }
@@ -215,7 +215,7 @@ void kf_pick_next_task_fair::get_pid_next_task(profiler_t *p, processor_lib_t* p
   p->logger()->submit_packet(perfetto::packet_t(
         std::string(k_pick_next_task_fair),
         perfetto::TYPE_INSTANT,
-        p->pstate()->get_insn_retired()));
+        p->pstate()->get_timestamp()));
 }
 
 kf_finish_task_switch::kf_finish_task_switch(std::string name)
@@ -237,13 +237,13 @@ opt_cs_entry_t kf_finish_task_switch::update_profiler(profiler_t* p) {
   p->logger()->submit_packet(perfetto::packet_t(
         prev_bin,
         perfetto::TYPE_SLICE_END,
-        p->pstate()->get_insn_retired()));
+        p->pstate()->get_timestamp()));
 
   std::string cur_bin = pid2bin[cur_pid];
   p->logger()->submit_packet(perfetto::packet_t(
         cur_bin,
         perfetto::TYPE_SLICE_BEGIN,
-        p->pstate()->get_insn_retired()));
+        p->pstate()->get_timestamp()));
 
   return callstack_entry_t(k_finish_task_switch, "");
 }

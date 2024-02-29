@@ -55,12 +55,12 @@ reg_t profiler_state_t::get_curpid() {
   return cur_pid_;
 }
 
-void profiler_state_t::incr_retired_insns(reg_t amount) {
-  insn_retired_ += amount;
+void profiler_state_t::update_timestamp(reg_t amount) {
+  timestamp_ = amount;
 }
 
-reg_t profiler_state_t::get_insn_retired() {
-  return insn_retired_;
+reg_t profiler_state_t::get_timestamp() {
+  return timestamp_;
 }
 
 std::vector<callstack_entry_t>& profiler_state_t::get_callstack(reg_t pid) {
