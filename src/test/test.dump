@@ -1090,3 +1090,184 @@ ffffffff806dee4a:	64a2                	ld	s1,8(sp)
 ffffffff806dee4c:	6902                	ld	s2,0(sp)
 ffffffff806dee4e:	6105                	addi	sp,sp,32
 ffffffff806dee50:	8082                	ret
+
+ffffffff8000a1bc <set_mm_asid>:
+ffffffff8000a1bc:	711d                	addi	sp,sp,-96
+ffffffff8000a1be:	e4a6                	sd	s1,72(sp)
+ffffffff8000a1c0:	02059493          	slli	s1,a1,0x20
+ffffffff8000a1c4:	9081                	srli	s1,s1,0x20
+ffffffff8000a1c6:	e8a2                	sd	s0,80(sp)
+ffffffff8000a1c8:	e0ca                	sd	s2,64(sp)
+ffffffff8000a1ca:	f05a                	sd	s6,32(sp)
+ffffffff8000a1cc:	ec5e                	sd	s7,24(sp)
+ffffffff8000a1ce:	e862                	sd	s8,16(sp)
+ffffffff8000a1d0:	ec86                	sd	ra,88(sp)
+ffffffff8000a1d2:	fc4e                	sd	s3,56(sp)
+ffffffff8000a1d4:	f852                	sd	s4,48(sp)
+ffffffff8000a1d6:	f456                	sd	s5,40(sp)
+ffffffff8000a1d8:	e466                	sd	s9,8(sp)
+ffffffff8000a1da:	1080                	addi	s0,sp,96
+ffffffff8000a1dc:	0110dc17          	auipc	s8,0x110d
+ffffffff8000a1e0:	214c0c13          	addi	s8,s8,532 # ffffffff811173f0 <__per_cpu_offset>
+ffffffff8000a1e4:	00349793          	slli	a5,s1,0x3
+ffffffff8000a1e8:	97e2                	add	a5,a5,s8
+ffffffff8000a1ea:	639c                	ld	a5,0(a5)
+ffffffff8000a1ec:	00b6ab97          	auipc	s7,0xb6a
+ffffffff8000a1f0:	184b8b93          	addi	s7,s7,388 # ffffffff80b74370 <active_context>
+ffffffff8000a1f4:	875e                	mv	a4,s7
+ffffffff8000a1f6:	97ba                	add	a5,a5,a4
+ffffffff8000a1f8:	46853a03          	ld	s4,1128(a0)
+ffffffff8000a1fc:	6394                	ld	a3,0(a5)
+ffffffff8000a1fe:	8b2e                	mv	s6,a1
+ffffffff8000a200:	892a                	mv	s2,a0
+ffffffff8000a202:	1a068163          	beqz	a3,ffffffff8000a3a4 <set_mm_asid+0x1e8>
+ffffffff8000a206:	010d6a97          	auipc	s5,0x10d6
+ffffffff8000a20a:	eeaa8a93          	addi	s5,s5,-278 # ffffffff810e00f0 <asid_mask>
+ffffffff8000a20e:	000ab703          	ld	a4,0(s5)
+ffffffff8000a212:	010d6c97          	auipc	s9,0x10d6
+ffffffff8000a216:	ed6c8c93          	addi	s9,s9,-298 # ffffffff810e00e8 <current_version>
+ffffffff8000a21a:	000cb603          	ld	a2,0(s9)
+ffffffff8000a21e:	fff74713          	not	a4,a4
+ffffffff8000a222:	01477733          	and	a4,a4,s4
+ffffffff8000a226:	16c70263          	beq	a4,a2,ffffffff8000a38a <set_mm_asid+0x1ce>
+ffffffff8000a22a:	01006517          	auipc	a0,0x1006
+ffffffff8000a22e:	19e50513          	addi	a0,a0,414 # ffffffff810103c8 <context_lock>
+ffffffff8000a232:	006da097          	auipc	ra,0x6da
+ffffffff8000a236:	74e080e7          	jalr	1870(ra) # ffffffff806e4980 <_raw_spin_lock_irqsave>
+ffffffff8000a23a:	000ab783          	ld	a5,0(s5)
+ffffffff8000a23e:	46893603          	ld	a2,1128(s2)
+ffffffff8000a242:	000cb703          	ld	a4,0(s9)
+ffffffff8000a246:	fff7c793          	not	a5,a5
+ffffffff8000a24a:	8ff1                	and	a5,a5,a2
+ffffffff8000a24c:	89aa                	mv	s3,a0
+ffffffff8000a24e:	8a32                	mv	s4,a2
+ffffffff8000a250:	10e79f63          	bne	a5,a4,ffffffff8000a36e <set_mm_asid+0x1b2>
+ffffffff8000a254:	ab41a783          	lw	a5,-1356(gp) # ffffffff810df3d4 <nr_cpu_ids>
+ffffffff8000a258:	000b071b          	sext.w	a4,s6
+ffffffff8000a25c:	16fb7863          	bgeu	s6,a5,ffffffff8000a3cc <set_mm_asid+0x210>
+ffffffff8000a260:	41f7579b          	sraiw	a5,a4,0x1f
+ffffffff8000a264:	01a7d79b          	srliw	a5,a5,0x1a
+ffffffff8000a268:	9fb9                	addw	a5,a5,a4
+ffffffff8000a26a:	4067d79b          	sraiw	a5,a5,0x6
+ffffffff8000a26e:	4705                	li	a4,1
+ffffffff8000a270:	01671733          	sll	a4,a4,s6
+ffffffff8000a274:	010d6697          	auipc	a3,0x10d6
+ffffffff8000a278:	e6c68693          	addi	a3,a3,-404 # ffffffff810e00e0 <context_tlb_flush_pending>
+ffffffff8000a27c:	078e                	slli	a5,a5,0x3
+ffffffff8000a27e:	97b6                	add	a5,a5,a3
+ffffffff8000a280:	fff74693          	not	a3,a4
+ffffffff8000a284:	66d7b6af          	amoand.d.aqrl	a3,a3,(a5)
+ffffffff8000a288:	00349793          	slli	a5,s1,0x3
+ffffffff8000a28c:	9c3e                	add	s8,s8,a5
+ffffffff8000a28e:	000c3583          	ld	a1,0(s8)
+ffffffff8000a292:	87de                	mv	a5,s7
+ffffffff8000a294:	97ae                	add	a5,a5,a1
+ffffffff8000a296:	8f75                	and	a4,a4,a3
+ffffffff8000a298:	85ce                	mv	a1,s3
+ffffffff8000a29a:	e390                	sd	a2,0(a5)
+ffffffff8000a29c:	01006517          	auipc	a0,0x1006
+ffffffff8000a2a0:	12c50513          	addi	a0,a0,300 # ffffffff810103c8 <context_lock>
+ffffffff8000a2a4:	00e039b3          	snez	s3,a4
+ffffffff8000a2a8:	006db097          	auipc	ra,0x6db
+ffffffff8000a2ac:	818080e7          	jalr	-2024(ra) # ffffffff806e4ac0 <_raw_spin_unlock_irqrestore>
+ffffffff8000a2b0:	00d8e697          	auipc	a3,0xd8e
+ffffffff8000a2b4:	b2868693          	addi	a3,a3,-1240 # ffffffff80d97dd8 <kernel_map>
+ffffffff8000a2b8:	04893783          	ld	a5,72(s2)
+ffffffff8000a2bc:	6298                	ld	a4,0(a3)
+ffffffff8000a2be:	00e7ee63          	bltu	a5,a4,ffffffff8000a2da <set_mm_asid+0x11e>
+ffffffff8000a2c2:	8281c603          	lbu	a2,-2008(gp) # ffffffff810df148 <pgtable_l5_enabled>
+ffffffff8000a2c6:	ce45                	beqz	a2,ffffffff8000a37e <set_mm_asid+0x1c2>
+ffffffff8000a2c8:	4605                	li	a2,1
+ffffffff8000a2ca:	165e                	slli	a2,a2,0x37
+ffffffff8000a2cc:	9732                	add	a4,a4,a2
+ffffffff8000a2ce:	00e7f663          	bgeu	a5,a4,ffffffff8000a2da <set_mm_asid+0x11e>
+ffffffff8000a2d2:	7298                	ld	a4,32(a3)
+ffffffff8000a2d4:	40e78733          	sub	a4,a5,a4
+ffffffff8000a2d8:	a021                	j	ffffffff8000a2e0 <set_mm_asid+0x124>
+ffffffff8000a2da:	7698                	ld	a4,40(a3)
+ffffffff8000a2dc:	40e78733          	sub	a4,a5,a4
+ffffffff8000a2e0:	000ab783          	ld	a5,0(s5)
+ffffffff8000a2e4:	00d8e697          	auipc	a3,0xd8e
+ffffffff8000a2e8:	b3c6b683          	ld	a3,-1220(a3) # ffffffff80d97e20 <satp_mode>
+ffffffff8000a2ec:	8331                	srli	a4,a4,0xc
+ffffffff8000a2ee:	00fa77b3          	and	a5,s4,a5
+ffffffff8000a2f2:	17b2                	slli	a5,a5,0x2c
+ffffffff8000a2f4:	8fd5                	or	a5,a5,a3
+ffffffff8000a2f6:	8fd9                	or	a5,a5,a4
+ffffffff8000a2f8:	18079073          	csrw	satp,a5
+ffffffff8000a2fc:	02098163          	beqz	s3,ffffffff8000a31e <set_mm_asid+0x162>
+ffffffff8000a300:	12000073          	sfence.vma
+ffffffff8000a304:	60e6                	ld	ra,88(sp)
+ffffffff8000a306:	6446                	ld	s0,80(sp)
+ffffffff8000a308:	64a6                	ld	s1,72(sp)
+ffffffff8000a30a:	6906                	ld	s2,64(sp)
+ffffffff8000a30c:	79e2                	ld	s3,56(sp)
+ffffffff8000a30e:	7a42                	ld	s4,48(sp)
+ffffffff8000a310:	7aa2                	ld	s5,40(sp)
+ffffffff8000a312:	7b02                	ld	s6,32(sp)
+ffffffff8000a314:	6be2                	ld	s7,24(sp)
+ffffffff8000a316:	6c42                	ld	s8,16(sp)
+ffffffff8000a318:	6ca2                	ld	s9,8(sp)
+ffffffff8000a31a:	6125                	addi	sp,sp,96
+ffffffff8000a31c:	8082                	ret
+ffffffff8000a31e:	8099                	srli	s1,s1,0x6
+ffffffff8000a320:	48090913          	addi	s2,s2,1152
+ffffffff8000a324:	048e                	slli	s1,s1,0x3
+ffffffff8000a326:	ab41a783          	lw	a5,-1356(gp) # ffffffff810df3d4 <nr_cpu_ids>
+ffffffff8000a32a:	03fb7693          	andi	a3,s6,63
+ffffffff8000a32e:	94ca                	add	s1,s1,s2
+ffffffff8000a330:	08fb7663          	bgeu	s6,a5,ffffffff8000a3bc <set_mm_asid+0x200>
+ffffffff8000a334:	609c                	ld	a5,0(s1)
+ffffffff8000a336:	00d7d7b3          	srl	a5,a5,a3
+ffffffff8000a33a:	8b85                	andi	a5,a5,1
+ffffffff8000a33c:	d7e1                	beqz	a5,ffffffff8000a304 <set_mm_asid+0x148>
+ffffffff8000a33e:	41fb579b          	sraiw	a5,s6,0x1f
+ffffffff8000a342:	01a7d79b          	srliw	a5,a5,0x1a
+ffffffff8000a346:	016787bb          	addw	a5,a5,s6
+ffffffff8000a34a:	4067d79b          	sraiw	a5,a5,0x6
+ffffffff8000a34e:	4705                	li	a4,1
+ffffffff8000a350:	078e                	slli	a5,a5,0x3
+ffffffff8000a352:	00d71733          	sll	a4,a4,a3
+ffffffff8000a356:	993e                	add	s2,s2,a5
+ffffffff8000a358:	fff74793          	not	a5,a4
+ffffffff8000a35c:	60f9302f          	amoand.d	zero,a5,(s2)
+ffffffff8000a360:	000ab783          	ld	a5,0(s5)
+ffffffff8000a364:	00fa77b3          	and	a5,s4,a5
+ffffffff8000a368:	12f00073          	sfence.vma	zero,a5
+ffffffff8000a36c:	bf61                	j	ffffffff8000a304 <set_mm_asid+0x148>
+ffffffff8000a36e:	854a                	mv	a0,s2
+ffffffff8000a370:	cdbff0ef          	jal	ra,ffffffff8000a04a <__new_context>
+ffffffff8000a374:	8a2a                	mv	s4,a0
+ffffffff8000a376:	862a                	mv	a2,a0
+ffffffff8000a378:	46a93423          	sd	a0,1128(s2)
+ffffffff8000a37c:	bde1                	j	ffffffff8000a254 <set_mm_asid+0x98>
+ffffffff8000a37e:	8291c603          	lbu	a2,-2007(gp) # ffffffff810df149 <pgtable_l4_enabled>
+ffffffff8000a382:	ca15                	beqz	a2,ffffffff8000a3b6 <set_mm_asid+0x1fa>
+ffffffff8000a384:	4605                	li	a2,1
+ffffffff8000a386:	163a                	slli	a2,a2,0x2e
+ffffffff8000a388:	b791                	j	ffffffff8000a2cc <set_mm_asid+0x110>
+ffffffff8000a38a:	1007b72f          	lr.d	a4,(a5)
+ffffffff8000a38e:	00d71763          	bne	a4,a3,ffffffff8000a39c <set_mm_asid+0x1e0>
+ffffffff8000a392:	1b47b62f          	sc.d.rl	a2,s4,(a5)
+ffffffff8000a396:	fa75                	bnez	a2,ffffffff8000a38a <set_mm_asid+0x1ce>
+ffffffff8000a398:	0330000f          	fence	rw,rw
+ffffffff8000a39c:	4981                	li	s3,0
+ffffffff8000a39e:	e80706e3          	beqz	a4,ffffffff8000a22a <set_mm_asid+0x6e>
+ffffffff8000a3a2:	b739                	j	ffffffff8000a2b0 <set_mm_asid+0xf4>
+ffffffff8000a3a4:	010d6c97          	auipc	s9,0x10d6
+ffffffff8000a3a8:	d44c8c93          	addi	s9,s9,-700 # ffffffff810e00e8 <current_version>
+ffffffff8000a3ac:	010d6a97          	auipc	s5,0x10d6
+ffffffff8000a3b0:	d44a8a93          	addi	s5,s5,-700 # ffffffff810e00f0 <asid_mask>
+ffffffff8000a3b4:	bd9d                	j	ffffffff8000a22a <set_mm_asid+0x6e>
+ffffffff8000a3b6:	4605                	li	a2,1
+ffffffff8000a3b8:	1616                	slli	a2,a2,0x25
+ffffffff8000a3ba:	bf09                	j	ffffffff8000a2cc <set_mm_asid+0x110>
+ffffffff8000a3bc:	9002                	ebreak
+ffffffff8000a3be:	609c                	ld	a5,0(s1)
+ffffffff8000a3c0:	00d7d7b3          	srl	a5,a5,a3
+ffffffff8000a3c4:	8b85                	andi	a5,a5,1
+ffffffff8000a3c6:	df9d                	beqz	a5,ffffffff8000a304 <set_mm_asid+0x148>
+ffffffff8000a3c8:	9002                	ebreak
+ffffffff8000a3ca:	bf95                	j	ffffffff8000a33e <set_mm_asid+0x182>
+ffffffff8000a3cc:	9002                	ebreak
+ffffffff8000a3ce:	bd49                	j	ffffffff8000a260 <set_mm_asid+0xa4>

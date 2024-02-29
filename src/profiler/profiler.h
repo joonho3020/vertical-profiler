@@ -20,7 +20,6 @@
 #include "types.h"
 #include "objdump_parser.h"
 #include "thread_pool.h"
-#include "disam.h"
 #include "callstack_info.h"
 #include "perfetto_trace.h"
 #include "profiler_state.h"
@@ -68,7 +67,6 @@ public:
       const char *dtb_file,
       bool socket_enabled,
       FILE *cmd_file,
-      bool checkpoint,
       const char* rtl_tracefile_name,
       std::string prof_tracedir,
       FILE *stackfile);
@@ -79,26 +77,30 @@ public:
 public:
   // user facing APIs
   virtual int run() override;
-  void step_until_insn(std::string type);
+  virtual int run_from_trace() override;
 
-  void add_kernel_func_to_profile(function_t* f, bool rewind_at_exit);
+  void profile_kernel_func_at_exit(function_t* f, std::vector<addr_t> evas);
+  void profile_kernel_func_at_pc  (function_t* f, addr_t pc, std::vector<addr_t> evas);
+
   objdump_parser_t* get_objdump_parser(std::string oname);
 
   profiler_state_t* pstate();
   logger_t* logger();
 
   void process_callstack();
+  reg_t get_pc(int hartid);
 
 private:
   bool user_space_addr(addr_t va);
 
   std::map<std::string, objdump_parser_t*> objdumps_;
-  disassembler_t disasm_;
   profiler_state_t* pstate_;
   logger_t* logger_;
 
   // Stuff for stack unwinding
   stack_unwinder_t* stack_unwinder;
+
+  uint64_t SPIKE_LOG_FLUSH_PERIOD = 10000;
 };
 
 } // namespace profiler_t

@@ -79,7 +79,7 @@ std::string kf_do_execveat_common::find_exec_syscall_filepath(
     profiler_t* p,
     processor_lib_t* proc)
 {
-  objdump_parser_t *obj = p->get_objdump_parser(KERNEL);
+  objdump_parser_t *obj = p->get_objdump_parser(profiler::KERNEL);
   std::string farg_abi_reg = obj->func_args_reg(k_do_execveat_common,
                                                 k_do_execveat_common_filename_arg);
   unsigned int reg_idx = riscv_abi_ireg[farg_abi_reg];
@@ -114,8 +114,6 @@ opt_cs_entry_t kf_set_mm_asid::update_profiler(profiler_t* p) {
   std::vector<callstack_entry_t>& cs = p->pstate()->get_callstack(pid);
 
   if (called_by_do_execveat_common(cs)) {
-    p->step_until_insn(CSRW);
-
     callstack_entry_t top = cs.back();
     std::string bin = top.bin();
     reg_t asid = proc->get_asid();
@@ -177,7 +175,7 @@ opt_cs_entry_t kf_kernel_clone::update_profiler(profiler_t* p) {
 }
 
 pid_t kf_kernel_clone::get_forked_task_pid(profiler_t* p, processor_lib_t* proc) {
-  objdump_parser_t *obj = p->get_objdump_parser(KERNEL);
+  objdump_parser_t *obj = p->get_objdump_parser(profiler::KERNEL);
   std::string ret_reg = obj->func_ret_reg(k_kernel_clone);
   unsigned int reg_idx = riscv_abi_ireg[ret_reg];
 
@@ -199,7 +197,7 @@ opt_cs_entry_t kf_pick_next_task_fair::update_profiler(profiler_t* p) {
 }
 
 void kf_pick_next_task_fair::get_pid_next_task(profiler_t *p, processor_lib_t* proc) {
-  objdump_parser_t *obj = p->get_objdump_parser(KERNEL);
+  objdump_parser_t *obj = p->get_objdump_parser(profiler::KERNEL);
   std::string ret_reg = obj->func_ret_reg(k_pick_next_task_fair);
   unsigned int reg_idx = riscv_abi_ireg[ret_reg];
 
@@ -251,7 +249,7 @@ opt_cs_entry_t kf_finish_task_switch::update_profiler(profiler_t* p) {
 }
 
 pid_t kf_finish_task_switch::get_prev_pid(profiler_t *p, processor_lib_t* proc) {
-  objdump_parser_t *obj = p->get_objdump_parser(KERNEL);
+  objdump_parser_t *obj = p->get_objdump_parser(profiler::KERNEL);
   std::string reg_name = obj->func_args_reg(k_finish_task_switch,
                                             k_finish_task_switch_prev_arg);
   unsigned int reg_idx = riscv_abi_ireg[reg_name];

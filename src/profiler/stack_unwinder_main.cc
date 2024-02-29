@@ -48,7 +48,7 @@ int main() {
   }
 
   std::vector<std::pair<std::string, std::string>> dwarf_paths;
-  dwarf_paths.push_back({KERNEL,            "../../test-io/test-binaries/linux-workloads/linux-workloads-bin-dwarf"});
+  dwarf_paths.push_back({profiler::KERNEL,            "../../test-io/test-binaries/linux-workloads/linux-workloads-bin-dwarf"});
   dwarf_paths.push_back({"hello.linux.riscv", "../../test-io/test-binaries/linux-workloads/overlay/root/hello.linux.riscv"});
 
   std::map<uint64_t, std::string> asid_to_bin;
@@ -108,7 +108,7 @@ int main() {
         split(subpath, binpath, '/');
         stack_unwinder->add_instruction(addr, cycle, subpath.back());
       } else {
-        stack_unwinder->add_instruction(addr, cycle, KERNEL);
+        stack_unwinder->add_instruction(addr, cycle, profiler::KERNEL);
       }
       cycle++;
     }

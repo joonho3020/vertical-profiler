@@ -86,6 +86,7 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --kernel-info=<name>  <objdump,dwarf> of kernel\n");
   fprintf(stderr, "  --user-info=<name>    <objdump,dwarf>+<objdump,dwarf>... of space programs\n");
   fprintf(stderr, "  --prof-out=<name>     Directory to output profiling data\n");
+  fprintf(stderr, "  --rtl-trace=<name>    Read trace from file\n");
 
   exit(exit_code);
 }
@@ -476,8 +477,8 @@ int main(int argc, char** argv)
     std::vector<std::string> paths;
     split(paths, info, ',');
     assert(paths.size() == 2);
-    objdump_paths.push_back({KERNEL, paths[0]});
-    dwarf_paths.push_back({KERNEL, paths[1]});
+    objdump_paths.push_back({profiler::KERNEL, paths[0]});
+    dwarf_paths.push_back({profiler::KERNEL, paths[1]});
   });
   parser.option(0, "user-info", 1, [&](const char *s){
     std::string all_users = s;
@@ -498,11 +499,22 @@ int main(int argc, char** argv)
       dwarf_paths.push_back({dirs.back(), info[0]});
     }
   });
+  const char* trace_file = NULL;
+  parser.option(0, "rtl-trace", 1, [&](const char* s){
+      trace_file = s;
+  });
   auto argv1 = parser.parse(argv);
   std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
 
   if (!*argv1)
     help();
+
+  bool rtl_lockstep = (trace_file != NULL);
+  if (rtl_lockstep) {
+    cfg.mem_layout.clear();
+    cfg.mem_layout.push_back(
+        mem_cfg_t(reg_t(DRAM_BASE), (reg_t)(16384ULL << 20)));
+  }
 
   std::vector<std::pair<reg_t, abstract_mem_t*>> mems =
       make_mems(cfg.mem_layout);
@@ -554,7 +566,6 @@ int main(int argc, char** argv)
     }
     cfg.hartids = default_hartids;
   }
-  bool rtl_lockstep = false;
   cfg.handle_time_by_xcpt = rtl_lockstep;
 
 
@@ -570,7 +581,7 @@ int main(int argc, char** argv)
 
   profiler::profiler_t p(objdump_paths, dwarf_paths, &cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
       log_path, dtb_enabled, dtb_file, socket, cmd_file,
-      true, NULL, prof_tracedir, callstack);
+      trace_file, prof_tracedir, callstack);
 
   if (dump_dts) {
     printf("%s", p.get_dts());
@@ -579,8 +590,12 @@ int main(int argc, char** argv)
   p.configure_log(log, log_commits);
   p.set_debug(debug);
 
-  auto return_code = p.run();
-
+  int return_code;
+  if (!rtl_lockstep) {
+    return_code = p.run();
+  } else {
+    return_code = p.run_from_trace();
+  }
   p.process_callstack();
 
   return return_code;

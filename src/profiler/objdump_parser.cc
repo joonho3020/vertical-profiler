@@ -63,7 +63,6 @@ std::vector<std::string>& objdump_parser_t::get_func_body(std::string func) {
   return it->second;
 }
 
-
 std::string objdump_parser_t::func_args_reg(std::string func, int arg_idx) {
   assert((void("RISC-V can pass up to 8 arguments via regs"), arg_idx <= 7));
 
@@ -156,6 +155,30 @@ std::vector<addr_t> objdump_parser_t::get_func_exits_va(std::string func) {
     words.clear();
   }
   return exit_points;
+}
+
+addr_t objdump_parser_t::get_func_csrw_va(std::string func, std::string csr) {
+  std::vector<std::string>& body = get_func_body(func);
+  std::vector<std::string> words;
+  std::vector<addr_t> csrw_pc;
+  char* end = nullptr;
+
+  for (auto& l : body) {
+    split(words, l);
+    if ((int)words.size() < 4)
+      continue;
+    if (words[2].compare("csrw") == 0 && words[3].find(csr) != std::string::npos)
+      csrw_pc.push_back(std::strtoul(words[0].c_str(), &end, 16));
+    words.clear();
+  }
+
+  if (csrw_pc.size() == 0) {
+    pexit("csr: %s not found in function: %s\n", csr.c_str(), func.c_str());
+  } else if (csrw_pc.size() > 1) {
+    pexit("multiple csr: %s found in function: %s\n", csr.c_str(), func.c_str());
+  } else {
+    return csrw_pc[0];
+  }
 }
 
 } // namespace profiler

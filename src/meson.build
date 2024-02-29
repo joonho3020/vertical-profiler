@@ -1,5 +1,8 @@
-project('profiler', 'cpp')
-
+project('profiler', 'cpp',
+    default_options: [
+      'b_ndebug=false'
+    ]
+)
 
 add_global_arguments('-O3', language : 'cpp')
 
@@ -79,7 +82,6 @@ executable('profiler_main',
     'profiler/profiler_state.cc',
     'profiler/thread_pool.cc',
     'profiler/logger.cc',
-    'profiler/disasm.cc',
     'profiler/callstack_info.cc',
     'profiler/stack_unwinder.cc',
     'profiler/perfetto_trace.cc'
@@ -129,3 +131,7 @@ perfetto_trace_test = executable('test_perfetto_trace',
     perfetto_trace_lib
   ])
 test('perfetto_trace test', perfetto_trace_test)
+
+assert_test = executable('test_assert',
+  'test/test_assert.cc')
+test('test_assert test', assert_test)

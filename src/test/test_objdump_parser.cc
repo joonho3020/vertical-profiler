@@ -30,20 +30,17 @@ void check_func_end(std::string func, objdump_parser_t* parser) {
   std::cout << func << " end addr: 0x" << std::hex << parser->get_func_end_va(func) << std::endl;
 }
 
-/* void check_func_callsites(std::string caller, std::string callee, objdump_parser_t* parser) { */
-/* std::vector<addr_t> addrs = parser->get_func_callsites(caller, callee); */
-/* std::cout << caller << " calls " << callee << " at" << std::endl; */
-/* for (addr : addrs) { */
-/* std::cout << std::hex << addr << std::endl; */
-/* } */
-/* } */
-
 void check_func_exits(std::string func, objdump_parser_t* parser) {
   std::vector<addr_t> exit_points = parser->get_func_exits_va(func);
   std::cout << func << " exit addrs" << std::endl;
   for (auto addr : exit_points) {
     std::cout << std::hex << addr << std::endl;
   }
+}
+
+void check_func_csrw(std::string func, objdump_parser_t* parser) {
+  addr_t csrw_pc = parser->get_func_csrw_va(func, profiler::PROF_CSR_SATP);
+  std::cout << func << " csrw addr " << std::hex << csrw_pc << std::endl;
 }
 
 int main() {
@@ -64,7 +61,8 @@ int main() {
   check_func_exits("pick_next_task_fair", parser);
   check_func_exits("io_schedule_timeout", parser);
 
-/* check_func_callsites("__schedule", "pick_next_task_fair", parser); */
+  check_func_csrw("set_mm_asid", parser);
+
 
   test("alloc_bprm", 1, parser);
   test("alloc_bprm", 0, parser);

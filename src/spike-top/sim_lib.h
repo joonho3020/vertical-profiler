@@ -53,8 +53,7 @@ struct rtl_step_t {
   }
 };
 
-class sim_lib_t : public sim_t
-{
+class sim_lib_t : public sim_t {
 public:
   sim_lib_t(const cfg_t *cfg, bool halted,
         std::vector<std::pair<reg_t, abstract_mem_t*>> mems,
@@ -63,16 +62,15 @@ public:
         const debug_module_config_t &dm_config, const char *log_path,
         bool dtb_enabled, const char *dtb_file,
         bool socket_enabled,
-        FILE *cmd_file,
-        bool checkpoint, // needed for command line option --cmd
+        FILE *cmd_file, /* needed for command line option --cmd */
         const char* rtl_tracefile_name,
         bool serialize_mem);
+
   ~sim_lib_t();
 
-
   virtual int run();
+  virtual int run_from_trace();
   void run_for(uint64_t steps);
-  int run_from_trace();
 
   void init();
   bool target_running();
@@ -130,6 +128,7 @@ private:
 
   std::vector<std::shared_ptr<ganged_device_t>> ganged_devs;
 
+protected:
   uint64_t ROCKETCHIP_RESET_VECTOR  = 0x10000;
   size_t   ROCKETCHIP_BOOTROM_BASE  = 0x10000;
   size_t   ROCKETCHIP_BOOTROM_SIZE  = 0x10000;

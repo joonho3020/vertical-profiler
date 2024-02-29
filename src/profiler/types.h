@@ -22,9 +22,9 @@ namespace profiler {
 #define pexit(...)                                            \
   fprintf(stdout, "\033[0;31m[Prof]\033[0m " __VA_ARGS__ );   \
   fflush(stdout);                                             \
-  exit(1);
+  assert(false);
 
-#define passert(...)                                            \
+#define passert(...)                                          \
   fprintf(stdout, "\033[0;31m[Prof]\033[0m " __VA_ARGS__ );   \
   fflush(stdout);                                             \
   assert(false);
@@ -53,7 +53,10 @@ typedef std::optional<reg_t> optreg_t;
 #define k_finish_task_switch "finish_task_switch.isra.0"
 #define k_finish_task_switch_prev_arg 0
 
-#define KERNEL "k"
+/* #define CSR_SATP "satp" */
+/* #define KERNEL "k" */
+const std::string KERNEL = "k";
+const std::string PROF_CSR_SATP = "satp";
 
 #define XPR_CNT 32
 

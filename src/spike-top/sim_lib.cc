@@ -39,7 +39,6 @@ sim_lib_t::sim_lib_t(const cfg_t *cfg, bool halted,
         bool dtb_enabled, const char *dtb_file,
         bool socket_enabled,
         FILE *cmd_file,
-        bool checkpoint,
         const char* rtl_tracefile_name,
         bool serialize_mem)
   : sim_t(cfg, halted, mems, plugin_device_factories, args, dm_config,
@@ -562,7 +561,7 @@ void sim_lib_t::deserialize_proto(std::string& msg) {
     plic->set_priority(i, plic_proto.msg_priority(i));
   }
 
-  assert(plic_proto.msg_priority_size() == PLIC_MAX_DEVICES / 32);
+  assert(plic_proto.msg_level_size() == PLIC_MAX_DEVICES / 32);
   for (int i = 0, cnt = plic_proto.msg_level_size(); i < cnt; i++) {
     plic->set_level(i, plic_proto.msg_level(i));
   }
@@ -909,7 +908,6 @@ rtl_step_t sim_lib_t::parse_line_into_rtltrace(std::string line) {
 }
 
 int sim_lib_t::run_from_trace() {
-  printf("device cnt: %d\n", devices.size());
   assert(rtl_tracefile_name);
   std::string line;
   std::string tracefile_string = std::string(rtl_tracefile_name);

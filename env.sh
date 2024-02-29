@@ -26,7 +26,7 @@ export CXX_FOR_BUILD="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-c++"
 export DEBUG_CXXFLAGS="-fvisibility-inlines-hidden -fmessage-length=0 -march=nocona -mtune=haswell -ftree-vectorize -fPIC -fstack-protector-all -fno-plt -Og -g -Wall -Wextra -fvar-tracking-assignments -ffunction-sections -pipe -isystem $CONDA_PREFIX/include"
 
 export CPP="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-cpp"
-export CPPFLAGS="-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem $CONDA_PREFIX/include"
+export CPPFLAGS="-D_FORTIFY_SOURCE=2 -O2 -isystem $CONDA_PREFIX/include"
 export DEBUG_CPPFLAGS="-D_DEBUG -D_FORTIFY_SOURCE=2 -Og -isystem $CONDA_PREFIX/include"
 
 export LDFLAGS="-Wl,-O2 -Wl,--sort-common -Wl,--as-needed -Wl,-z,relro -Wl,-z,now -Wl,--disable-new-dtags -Wl,--gc-sections -Wl,--allow-shlib-undefined -Wl,-rpath,$CONDA_PREFIX/lib -Wl,-rpath-link,$CONDA_PREFIX/lib -L$CONDA_PREFIX/lib"

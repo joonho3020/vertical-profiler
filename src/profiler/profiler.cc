@@ -62,16 +62,15 @@ profiler_t::profiler_t(
       const char *dtb_file,
       bool socket_enabled,
       FILE *cmd_file,
-      bool checkpoint,
       const char* rtl_tracefile_name,
       std::string prof_tracedir,
       FILE *stackfile)
   : sim_lib_t(cfg, halted, mems, plugin_device_factories, args, dm_config,
-          log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file, checkpoint,
+          log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file,
           rtl_tracefile_name,
           false /* don't serialize_mem */)
 {
-  for (auto& p: objdump_paths) {
+  for (auto p: objdump_paths) {
     objdumps_.insert({p.first, new objdump_parser_t(p.second)});
   }
 
@@ -79,21 +78,36 @@ profiler_t::profiler_t(
   this->pstate_ = new profiler_state_t();
   this->stack_unwinder = new stack_unwinder_t(dwarf_paths, stackfile);
 
+  auto it = objdumps_.find(profiler::KERNEL);
+  if (it == objdumps_.end()) {
+    pprintf("%s\n", it->first.c_str());
+    passert("Could not find kernel objdump\n");
+  }
+
+  objdump_parser_t* kdump = it->second;
 
   function_t* f1 = new kf_do_execveat_common(k_do_execveat_common);
-  this->add_kernel_func_to_profile(f1, false);
+  this->profile_kernel_func_at_pc(f1, 
+      kdump->get_func_start_va(f1->name()),
+      kdump->get_func_exits_va(f1->name()));
 
   function_t* f2 = new kf_set_mm_asid(k_set_mm_asid);
-  this->add_kernel_func_to_profile(f2, false);
+  this->profile_kernel_func_at_pc(f2,
+      kdump->get_func_csrw_va(f2->name(), profiler::PROF_CSR_SATP),
+      kdump->get_func_exits_va(f2->name()));
 
   function_t* f3 = new kf_kernel_clone(k_kernel_clone);
-  this->add_kernel_func_to_profile(f3, true);
+  this->profile_kernel_func_at_exit(f3,
+      kdump->get_func_exits_va(f3->name()));
 
   function_t* f4 = new kf_pick_next_task_fair(k_pick_next_task_fair);
-  this->add_kernel_func_to_profile(f4, true);
+  this->profile_kernel_func_at_exit(f4,
+      kdump->get_func_exits_va(f4->name()));
 
   function_t* f5 = new kf_finish_task_switch(k_finish_task_switch);
-  this->add_kernel_func_to_profile(f5, false);
+  this->profile_kernel_func_at_pc(f5,
+      kdump->get_func_start_va(f5->name()),
+      kdump->get_func_exits_va(f5->name()));
 }
 
 profiler_t::~profiler_t() {
@@ -107,39 +121,36 @@ profiler_t::~profiler_t() {
   delete this->logger_;
 }
 
-void profiler_t::add_kernel_func_to_profile(function_t* f, bool rewind_at_exit) {
-  std::string fname = f->name();
-
-  auto it = objdumps_.find(KERNEL);
-  if (it == objdumps_.end()) {
-    pexit("Could not find kernel objdump\n");
+void profiler_t::profile_kernel_func_at_exit(
+    function_t* f, std::vector<addr_t> evas) {
+  for (auto e : evas) {
+    // Don't need to pop the stack because we are 
+    // intercepting the function at its exit.
+    pstate_->add_prof_func(e, f);
   }
+}
 
-  objdump_parser_t* kdump = it->second;
-  addr_t              sva  = kdump->get_func_start_va(fname);
-  std::vector<addr_t> evas = kdump->get_func_exits_va(fname);
-
-  if (rewind_at_exit) {
-    for (auto e : evas) {
-      // Don't need to pop the stack because we are 
-      // intercepting the function at its exit.
-      pstate_->add_prof_func(e, f);
-    }
-  } else {
-    for (auto e : evas) {
-      pstate_->add_prof_exit(e);
-    }
-    pstate_->add_prof_func(sva, f);
+void profiler_t::profile_kernel_func_at_pc(
+    function_t* f, addr_t pc, std::vector<addr_t> evas) {
+  for (auto e : evas) {
+    pstate_->add_prof_exit(e);
   }
+  pstate_->add_prof_func(pc, f);
 }
 
 objdump_parser_t* profiler_t::get_objdump_parser(std::string oname) {
 #ifdef PROFILER_DEBUG
   if (objdumps.find(oname) == objdumps.end()) {
-    pexit("Objdump mismatch: %s\n", oname.c_str());
+    passert("Objdump mismatch: %s\n", oname.c_str());
   }
 #endif
   return objdumps_.find(oname)->second;
+}
+
+reg_t profiler_t::get_pc(int hartid) {
+  processor_t* proc = get_core(hartid);
+  state_t* state = proc->get_state();
+  return state->pc;
 }
 
 // Kernel takes up the upper virtual address
@@ -154,16 +165,6 @@ profiler_state_t* profiler_t::pstate() {
 
 logger_t* profiler_t::logger() {
   return logger_;
-}
-
-void profiler_t::step_until_insn(std::string type) {
-  do {
-    run_for(1);
-    auto ctrace = this->run_trace();
-    insn_t insn = ctrace.back().insn;
-    if (disasm_.is_type(type, insn))
-      break;
-  } while (true);
 }
 
 int profiler_t::run() {
@@ -232,10 +233,10 @@ int profiler_t::run() {
     while (popcnt--) {
 #ifdef PROFILER_DEBUG
       if (fstacks.find(cur_pid) == fstacks.end()) {
-        pexit("Could not find callstack for PID %u\n", cur_pid);
+        passert("Could not find callstack for PID %u\n", cur_pid);
       }
       if (fstacks[cur_pid].size() == 0) {
-        pexit("Callstack for PID %u empty, popcnt: %d\n", cur_pid, popcnt);
+        passert("Callstack for PID %u empty, popcnt: %d\n", cur_pid, popcnt);
       }
 #endif
       // TODO : What happens when we need to pop on when there is a context switch?
@@ -258,9 +259,7 @@ int profiler_t::run() {
 
       bool found_function = false;
       do {
-        processor_t* proc = get_core(0);
-        state_t* state = proc->get_state();
-        addr_t va = state->pc;
+        addr_t va = this->get_pc(0);
         optreg_t opt_sa = pstate_->found_registered_func_start_addr(va);
 
         if (unlikely(opt_sa.has_value())) {
@@ -314,6 +313,57 @@ int profiler_t::run() {
   return rc;
 }
 
+int profiler_t::run_from_trace() {
+  init();
+
+  assert(rtl_tracefile_name);
+  std::string line;
+  std::string tracefile_string = std::string(rtl_tracefile_name);
+  std::ifstream rtl_trace = std::ifstream(tracefile_string, std::ios::binary);
+
+  // TODO : multicore support
+  int hartid = 0;
+  this->configure_log(true, true);
+  this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
+
+  uint64_t loop_cntr = 0;
+  while (std::getline(rtl_trace, line)) {
+    uint64_t tohost_req = check_tohost_req();
+    if (tohost_req)
+      handle_tohost_req(tohost_req);
+
+    rtl_step_t step = parse_line_into_rtltrace(line);
+    bool success = ganged_step(step, hartid);
+    if (!success) {
+      passert("ganged simulation failed!\n");
+    }
+
+    addr_t pc = this->get_pc(hartid);
+    optreg_t opt_sa = pstate_->found_registered_func_start_addr(pc);
+    if (opt_sa.has_value()) {
+      auto f = pstate_->get_profile_func(opt_sa.value());
+      opt_cs_entry_t entry = f->update_profiler(this);
+      if (entry.has_value()) {
+        pstate_->push_callstack(pstate_->get_curpid(), entry.value());
+      }
+    } else if (pstate_->found_registered_func_exit_addr(pc).has_value()) {
+      pstate_->pop_callstack(pstate_->get_curpid());
+    }
+
+    loop_cntr++;
+    if (loop_cntr % SPIKE_LOG_FLUSH_PERIOD == 0) {
+      trace_t pctrace = this->run_trace();
+      this->clear_run_trace();
+
+      logger_->submit_trace_to_threadpool(pctrace);
+      logger_->submit_packet_trace_to_threadpool();
+      pstate_->incr_retired_insns((reg_t)pctrace.size());
+    }
+  }
+  auto rc = stop_sim();
+  return rc;
+}
+
 void profiler_t::process_callstack() {
   pprintf("Start stack unwinding\n");
 
@@ -325,7 +375,7 @@ void profiler_t::process_callstack() {
     std::string path = logger_->get_pctracedir() + "/" + logger_->spiketrace_filename(i);
     std::ifstream spike_trace = std::ifstream(path, std::ios::binary);
     if (!spike_trace) {
-      pexit("%s does not exist\n", path.c_str());
+      passert("%s does not exist\n", path.c_str());
     }
 
     std::string line;
@@ -345,7 +395,7 @@ void profiler_t::process_callstack() {
         split(subpath, binpath, '/');
         stack_unwinder->add_instruction(addr, cycle, subpath.back());
       } else {
-        stack_unwinder->add_instruction(addr, cycle, KERNEL);
+        stack_unwinder->add_instruction(addr, cycle, profiler::KERNEL);
       }
       cycle++;
     }

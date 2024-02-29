@@ -545,7 +545,7 @@ int main(int argc, char** argv)
 
   sim_lib_t s(&cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
       log_path, dtb_enabled, dtb_file, socket, cmd_file,
-      checkpoint, trace_file,
+      trace_file,
       rtl_lockstep /* serialize mem only when running in rtl lockstep mode */
       );
 
@@ -576,8 +576,7 @@ int main(int argc, char** argv)
   int return_code;
 
   if (rtl_lockstep) {
-/* return_code = s.run_from_trace(); */
-    return_code = s.run_from_trace_fast();
+    return_code = s.run_from_trace();
     if (!return_code)
       printf("Cospike ran successfully\n");
     else
