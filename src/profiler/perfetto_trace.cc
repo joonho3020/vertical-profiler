@@ -38,9 +38,6 @@ void packet_t::print(FILE* of) {
   fprintf(of, "\ttrusted_packet_sequence_id: 1\n");
   fprintf(of, "}\n");
   fflush(of);
-
-/* fprintf(of, "%s\n", name.c_str()); */
-/* fflush(of); */
 }
 
 event_trace_t::event_trace_t(std::string ofname) {
