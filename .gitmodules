@@ -13,3 +13,6 @@
 [submodule "perfetto"]
 	path = src/perfetto
 	url = https://github.com/google/perfetto.git
+[submodule "src/go-execution-trace-parser"]
+	path = src/go-execution-trace-parser
+	url = git@github.com:joonho3020/go-execution-trace-parser.git
