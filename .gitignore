@@ -7,3 +7,4 @@ prof/test
 *.log
 *.out
 **/__pycache__
+out/**

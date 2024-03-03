@@ -21,3 +21,6 @@ make clean || true
 ../configure --prefix=$PROTOBUF_INSTALL_DIR --disable-shared
 make -j64
 make install
+
+conda install meson
+pip install pyright
