@@ -17,10 +17,11 @@ def generate_proto(trace_path, out_file):
       < {trace_path} > {out_file}")
 
 def main():
-  trace_path = os.path.join(os.getcwd(), args.perfetto_trace)
+  trace_path = os.path.join(os.getcwd(), args.out_dir, args.perfetto_trace)
   os.chdir("src/perfetto")
   generate_proto(trace_path, args.out_file)
-  utils.bash(f"mv {args.out_file} {args.out_dir}")
+  os.chdir("../../")
+  utils.bash(f"mv src/perfetto/{args.out_file} {args.out_dir}/")
 
 if __name__ == "__main__":
   main()

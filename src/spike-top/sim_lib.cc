@@ -924,7 +924,11 @@ int sim_lib_t::run_from_trace() {
       handle_tohost_req(tohost_req);
 
     rtl_step_t step = parse_line_into_rtltrace(line);
-    ganged_step(step, hartid);
+    bool success = ganged_step(step, hartid);
+    if (!success) {
+      printf("ganged simulation failed\n");
+      assert(false);
+    }
   }
   return 0;
 }
@@ -937,7 +941,7 @@ void sim_lib_t::print_state() {
 
   printf("clint mtime 0x%" PRIx64 "\n", clint->get_mtime());
   for (uint64_t i = 0, cnt = (uint64_t)procs.size(); i < cnt; i++) {
-    printf("mtimecmpt[%" PRIu64 "]: 0x%" PRIx64 "\n", i, clint->get_mtimecmp(i));
+    printf("mtimecmp[%" PRIu64 "]: 0x%" PRIx64 "\n", i, clint->get_mtimecmp(i));
   }
 
   printf("plic state\n");
