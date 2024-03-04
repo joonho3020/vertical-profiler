@@ -362,6 +362,8 @@ int profiler_t::run_from_trace() {
       pstate_->update_timestamp(pstate_->get_timestamp() + (reg_t)pctrace.size());
     }
   }
+  logger_->flush_packet_trace_to_threadpool();
+  logger_->stop();
   auto rc = stop_sim();
   return rc;
 }
