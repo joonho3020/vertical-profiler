@@ -17,14 +17,15 @@ def open_json(file_path: str) -> Dict:
   return data
 
 def profiler_run_cmd(config: Dict) -> str:
+  outdir      = config['outdir']
   spike_only_mode = config['spike_only_mode']
   prof_bin    = config['profiler_bin']
-  spike_logs  = f"--log={config['spike_log']}"
+  spike_logs  = f"--log={os.path.join(outdir, config['spike_log'])}"
   prof_out    = f"--prof-out={config['outdir']}"
   kernel_info = f"--kernel-info=\"{config['kernel_dump']},{config['kernel_dwarf']}\""
   spikelib    = f"--extlib={config['libspikedevs']}"
   iceblk      = f"--device=iceblk,img={config['iceblk_img']}"
-  workload    = f"{config['bin']} | tee PROFILER-LOGS"
+  workload    = f"{config['bin']} | tee {os.path.join(outdir, 'PROFILER-LOGS')}"
 
   base_cmd_list = [prof_bin, spike_logs, prof_out, kernel_info, spikelib, iceblk]
 
@@ -55,6 +56,7 @@ def main():
   else:
     outdir = config['outdir']
     if not os.path.exists(outdir):
+      os.mkdir(outdir)
       os.mkdir(os.path.join(outdir, 'traces'))
 
     utils.bash(cmd)

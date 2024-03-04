@@ -338,7 +338,7 @@ int profiler_t::run_from_trace() {
       passert("ganged simulation failed!\n");
     }
 
-    this->pstate_->update_timestamp(step.time);
+    pstate_->update_timestamp(step.time);
 
     addr_t pc = this->get_pc(hartid);
     optreg_t opt_sa = pstate_->found_registered_func_start_addr(pc);
@@ -359,7 +359,6 @@ int profiler_t::run_from_trace() {
 
       logger_->submit_trace_to_threadpool(pctrace);
       logger_->submit_packet_trace_to_threadpool();
-      pstate_->update_timestamp(pstate_->get_timestamp() + (reg_t)pctrace.size());
     }
   }
   logger_->flush_packet_trace_to_threadpool();
