@@ -68,8 +68,7 @@ public:
       bool socket_enabled,
       FILE *cmd_file,
       const char* rtl_tracefile_name,
-      std::string prof_tracedir,
-      FILE *stackfile);
+      std::string prof_outdir);
 
   ~profiler_t();
 
@@ -91,14 +90,16 @@ public:
   reg_t get_pc(int hartid);
 
 private:
-  bool user_space_addr(addr_t va);
+  FILE* gen_outfile(std::string outdir, std::string filename);
+  bool user_space_addr(addr_t pc);
+  std::string get_binary_name(addr_t pc);
 
   std::map<std::string, objdump_parser_t*> objdumps_;
   profiler_state_t* pstate_;
   logger_t* logger_;
 
   // Stuff for stack unwinding
-  stack_unwinder_t* stack_unwinder;
+  stack_unwinder_t* stack_unwinder_;
 
   uint64_t SPIKE_LOG_FLUSH_PERIOD = 10000;
 };

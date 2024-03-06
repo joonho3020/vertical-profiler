@@ -106,9 +106,9 @@ int main() {
         std::string binpath = asid_to_bin[asid];
         std::vector<std::string> subpath;
         split(subpath, binpath, '/');
-        stack_unwinder->add_instruction(addr, cycle, subpath.back());
+        stack_unwinder->process_instruction(addr, cycle, subpath.back());
       } else {
-        stack_unwinder->add_instruction(addr, cycle, profiler::KERNEL);
+        stack_unwinder->process_instruction(addr, cycle, profiler::KERNEL);
       }
       cycle++;
     }

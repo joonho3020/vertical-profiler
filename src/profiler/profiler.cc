@@ -63,8 +63,7 @@ profiler_t::profiler_t(
       bool socket_enabled,
       FILE *cmd_file,
       const char* rtl_tracefile_name,
-      std::string prof_tracedir,
-      FILE *stackfile)
+      std::string prof_outdir)
   : sim_lib_t(cfg, halted, mems, plugin_device_factories, args, dm_config,
           log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file,
           rtl_tracefile_name,
@@ -74,9 +73,11 @@ profiler_t::profiler_t(
     objdumps_.insert({p.first, new objdump_parser_t(p.second)});
   }
 
-  this->logger_ = new logger_t(prof_tracedir);
+  FILE *callstack_outfile = gen_outfile(prof_outdir, "PROF-CALLSTACK");
+  FILE *profevent_outfile = gen_outfile(prof_outdir, "PROF-EVENTS");
+  this->stack_unwinder_ = new stack_unwinder_t(dwarf_paths, callstack_outfile);
+  this->logger_ = new logger_t(profevent_outfile);
   this->pstate_ = new profiler_state_t();
-  this->stack_unwinder = new stack_unwinder_t(dwarf_paths, stackfile);
 
   auto it = objdumps_.find(profiler::KERNEL);
   if (it == objdumps_.end()) {
@@ -116,7 +117,7 @@ profiler_t::~profiler_t() {
   }
   objdumps_.clear();
 
-  delete this->stack_unwinder;
+  delete this->stack_unwinder_;
   delete this->pstate_;
   delete this->logger_;
 }
@@ -154,9 +155,33 @@ reg_t profiler_t::get_pc(int hartid) {
 }
 
 // Kernel takes up the upper virtual address
-bool profiler_t::user_space_addr(addr_t va) {
-  addr_t va_hi = va >> 32;
-  return ((va_hi & 0xffffffff) == 0);
+bool profiler_t::user_space_addr(addr_t pc) {
+  addr_t pc_hi = pc >> 32;
+  return ((pc_hi & 0xffffffff) == 0);
+}
+
+FILE* profiler_t::gen_outfile(std::string outdir, std::string filename) {
+  FILE *outfile = fopen((outdir + "/" + filename).c_str(), "w");
+  if (outfile == NULL) {
+    fprintf(stderr, "Unable to open log file %s\n", filename.c_str());
+    exit(-1);
+  }
+  return outfile;
+}
+
+std::string profiler_t::get_binary_name(addr_t pc) {
+  std::string bin;
+  reg2str_t pid2bin = pstate_->pid2bin();
+  auto it = pid2bin.find(pstate_->get_curpid());
+  if (user_space_addr(pc) && it != pid2bin.end()) {
+    std::string binpath = it->second;
+    std::vector<std::string> subpath;
+    split(subpath, binpath, '/');
+    bin = subpath.back();
+  } else {
+    bin = profiler::KERNEL;
+  }
+  return bin;
 }
 
 profiler_state_t* profiler_t::pstate() {
@@ -284,14 +309,19 @@ int profiler_t::run() {
       auto rewind_e = GET_TIME();
       MEASURE_AVG_TIME(rewind_s, rewind_e, rewind_us, rewind_cnt);
     }
-    pstate_->update_timestamp(pstate_->get_timestamp() + (reg_t)pctrace.size());
-    logger_->submit_trace_to_threadpool(pctrace);
+
+    for (auto& entry : pctrace) {
+      std::string bin = get_binary_name(entry.pc);
+      stack_unwinder_->submit_insn(entry.pc, pstate_->get_timestamp(), bin);
+      pstate_->update_timestamp(pstate_->get_timestamp() + 1);
+    }
+    stack_unwinder_->submit_insns_to_threadpool();
     logger_->submit_packet_trace_to_threadpool();
   }
   auto run_e = GET_TIME();
   MEASURE_TIME(run_s, run_e, run_us);
 
-  logger_->flush_packet_trace_to_threadpool();
+  stack_unwinder_->stop();
   logger_->stop();
   auto rc = stop_sim();
 
@@ -326,7 +356,6 @@ int profiler_t::run_from_trace() {
   this->configure_log(true, true);
   this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
 
-  uint64_t loop_cntr = 0;
   while (std::getline(rtl_trace, line)) {
     uint64_t tohost_req = check_tohost_req();
     if (tohost_req)
@@ -352,57 +381,52 @@ int profiler_t::run_from_trace() {
       pstate_->pop_callstack(pstate_->get_curpid());
     }
 
-    loop_cntr++;
-    if (loop_cntr % SPIKE_LOG_FLUSH_PERIOD == 0) {
-      trace_t pctrace = this->run_trace();
-      this->clear_run_trace();
-
-      logger_->submit_trace_to_threadpool(pctrace);
-      logger_->submit_packet_trace_to_threadpool();
-    }
+    std::string bin = get_binary_name(step.pc);
+    stack_unwinder_->submit_insn(step.pc, step.time, bin);
+    logger_->submit_packet_trace_to_threadpool();
   }
-  logger_->flush_packet_trace_to_threadpool();
+  stack_unwinder_->stop();
   logger_->stop();
   auto rc = stop_sim();
   return rc;
 }
 
-void profiler_t::process_callstack() {
-  pprintf("Start stack unwinding\n");
-
-  // FIXME : just increment cycle every insn
-  uint64_t cycle = 0;
-  uint64_t trace_cnt = logger_->get_trace_idx();
-
-  for (uint64_t i = 0; i < trace_cnt; i++) {
-    std::string path = logger_->get_pctracedir() + "/" + logger_->spiketrace_filename(i);
-    std::ifstream spike_trace = std::ifstream(path, std::ios::binary);
-    if (!spike_trace) {
-      passert("%s does not exist\n", path.c_str());
-    }
-
-    std::string line;
-    std::string::size_type sz = 0;
-    std::vector<std::string> words;
-    while (std::getline(spike_trace, line)) {
-      split(words, line);
-      uint64_t addr = std::stoull(words[0], &sz, 16);
-      uint64_t asid = std::stoull(words[1], &sz, 10);
-      words.clear();
-
-      auto asid_to_bin = pstate_->asid2bin();
-      auto it = asid_to_bin.find(asid);
-      if (user_space_addr(addr) && it != asid_to_bin.end()) {
-        std::string binpath = it->second;
-        std::vector<std::string> subpath;
-        split(subpath, binpath, '/');
-        stack_unwinder->add_instruction(addr, cycle, subpath.back());
-      } else {
-        stack_unwinder->add_instruction(addr, cycle, profiler::KERNEL);
-      }
-      cycle++;
-    }
-  }
-}
+/* void profiler_t::process_callstack() { */
+/*   pprintf("Start stack unwinding\n"); */
+/**/
+/*   // FIXME : just increment cycle every insn */
+/*   uint64_t cycle = 0; */
+/*   uint64_t trace_cnt = logger_->get_trace_idx(); */
+/**/
+/*   for (uint64_t i = 0; i < trace_cnt; i++) { */
+/*     std::string path = logger_->get_pctracedir() + "/" + logger_->spiketrace_filename(i); */
+/*     std::ifstream spike_trace = std::ifstream(path, std::ios::binary); */
+/*     if (!spike_trace) { */
+/*       passert("%s does not exist\n", path.c_str()); */
+/*     } */
+/**/
+/*     std::string line; */
+/*     std::string::size_type sz = 0; */
+/*     std::vector<std::string> words; */
+/*     while (std::getline(spike_trace, line)) { */
+/*       split(words, line); */
+/*       uint64_t addr = std::stoull(words[0], &sz, 16); */
+/*       uint64_t asid = std::stoull(words[1], &sz, 10); */
+/*       words.clear(); */
+/**/
+/*       auto asid_to_bin = pstate_->asid2bin(); */
+/*       auto it = asid_to_bin.find(asid); */
+/*       if (user_space_addr(addr) && it != asid_to_bin.end()) { */
+/*         std::string binpath = it->second; */
+/*         std::vector<std::string> subpath; */
+/*         split(subpath, binpath, '/'); */
+/*         stack_unwinder->add_instruction(addr, cycle, subpath.back()); */
+/*       } else { */
+/*         stack_unwinder->add_instruction(addr, cycle, profiler::KERNEL); */
+/*       } */
+/*       cycle++; */
+/*     } */
+/*   } */
+/* } */
 
 } // namespace profiler_t
