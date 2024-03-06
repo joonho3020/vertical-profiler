@@ -29,10 +29,6 @@ void stack_unwinder_t::add_instruction(uint64_t inst_addr,
   if (bit != bin_dumps.end()) {
     this_instr = bit->second->getInstrFromAddr(inst_addr);
     label_pfx = binary;
-
-    // At this point, we found a objdump for this instruction. So the
-    // ObjdumpedBinary should be able to return use a valid instruction.
-    assert(this_instr != nullptr);
   }
 
   std::string userspace_misc = "USERSPACE_MISC";

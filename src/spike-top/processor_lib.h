@@ -12,9 +12,7 @@
 struct trace_entry_t {
   reg_t pc;
   reg_t asid;
-  reg_t prv;
-  reg_t prev_prv;
-  insn_t insn;
+  reg_t cycle;
 };
 
 typedef std::vector<trace_entry_t> trace_t;
@@ -30,6 +28,7 @@ public:
   ~processor_lib_t();
 
   reg_t get_asid();
+  reg_t get_mcycle();
   trace_t& step_trace() { return trace; }
   virtual void step(size_t n) override;
 

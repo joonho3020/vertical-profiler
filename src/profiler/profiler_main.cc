@@ -571,17 +571,9 @@ int main(int argc, char** argv)
 
   std::string prof_outdir_cpp = std::string(prof_outdir);
 
-  FILE *callstack = fopen((prof_outdir_cpp + "/PROF-CALLSTACK").c_str(), "w");
-  if (callstack == NULL) {
-    fprintf(stderr, "Unable to open callstack file PROF-CALLSTACK\n");
-    exit(-1);
-  }
-
-  std::string prof_tracedir = prof_outdir_cpp + "/traces";
-
   profiler::profiler_t p(objdump_paths, dwarf_paths, &cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
       log_path, dtb_enabled, dtb_file, socket, cmd_file,
-      trace_file, prof_tracedir, callstack);
+      trace_file, prof_outdir_cpp);
 
   if (dump_dts) {
     printf("%s", p.get_dts());

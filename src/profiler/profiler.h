@@ -68,8 +68,7 @@ public:
       bool socket_enabled,
       FILE *cmd_file,
       const char* rtl_tracefile_name,
-      std::string prof_tracedir,
-      FILE *stackfile);
+      std::string prof_outdir);
 
   ~profiler_t();
 
@@ -92,6 +91,7 @@ public:
 
 private:
   bool user_space_addr(addr_t va);
+  FILE* gen_outfile(std::string outdir, std::string filename);
 
   std::map<std::string, objdump_parser_t*> objdumps_;
   profiler_state_t* pstate_;

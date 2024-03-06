@@ -110,6 +110,9 @@ public:
   processor_lib_t* get_core(size_t i) { 
     return dynamic_cast<processor_lib_t*>(procs.at(i)); 
   }
+  reg_t get_asid(int hartid) {
+    return get_core(hartid)->get_asid();
+  }
 
   rtl_step_t parse_line_into_rtltrace(std::string line);
   bool ganged_step(rtl_step_t step, int hartid);

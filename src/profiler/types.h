@@ -11,10 +11,6 @@ namespace profiler {
 /////////////////////////////////////////////////////
 // MACROS
 /////////////////////////////////////////////////////
-#define   likely(x) __builtin_expect(x, 1)
-#define unlikely(x) __builtin_expect(x, 1)
-
-
 #define pprintf(...)                                          \
   fprintf(stdout, "\033[0;32m[Prof]\033[0m " __VA_ARGS__ );   \
   fflush(stdout);
@@ -53,8 +49,6 @@ typedef std::optional<reg_t> optreg_t;
 #define k_finish_task_switch "finish_task_switch.isra.0"
 #define k_finish_task_switch_prev_arg 0
 
-/* #define CSR_SATP "satp" */
-/* #define KERNEL "k" */
 const std::string KERNEL = "k";
 const std::string PROF_CSR_SATP = "satp";
 

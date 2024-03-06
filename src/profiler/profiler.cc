@@ -63,8 +63,7 @@ profiler_t::profiler_t(
       bool socket_enabled,
       FILE *cmd_file,
       const char* rtl_tracefile_name,
-      std::string prof_tracedir,
-      FILE *stackfile)
+      std::string prof_outdir)
   : sim_lib_t(cfg, halted, mems, plugin_device_factories, args, dm_config,
           log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file,
           rtl_tracefile_name,
@@ -74,9 +73,10 @@ profiler_t::profiler_t(
     objdumps_.insert({p.first, new objdump_parser_t(p.second)});
   }
 
-  this->logger_ = new logger_t(prof_tracedir);
+  FILE *callstack_outfile = gen_outfile(prof_outdir, "PROF-CALLSTACK");
+  this->logger_ = new logger_t(prof_outdir);
   this->pstate_ = new profiler_state_t();
-  this->stack_unwinder = new stack_unwinder_t(dwarf_paths, stackfile);
+  this->stack_unwinder = new stack_unwinder_t(dwarf_paths, callstack_outfile);
 
   auto it = objdumps_.find(profiler::KERNEL);
   if (it == objdumps_.end()) {
@@ -157,6 +157,15 @@ reg_t profiler_t::get_pc(int hartid) {
 bool profiler_t::user_space_addr(addr_t va) {
   addr_t va_hi = va >> 32;
   return ((va_hi & 0xffffffff) == 0);
+}
+
+FILE* profiler_t::gen_outfile(std::string outdir, std::string filename) {
+  FILE *outfile = fopen((outdir + "/" + filename).c_str(), "w");
+  if (outfile == NULL) {
+    fprintf(stderr, "Unable to open log file %s\n", filename.c_str());
+    exit(-1);
+  }
+  return outfile;
 }
 
 profiler_state_t* profiler_t::pstate() {
@@ -326,7 +335,7 @@ int profiler_t::run_from_trace() {
   this->configure_log(true, true);
   this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
 
-  uint64_t loop_cntr = 0;
+  trace_t pctrace;
   while (std::getline(rtl_trace, line)) {
     uint64_t tohost_req = check_tohost_req();
     if (tohost_req)
@@ -352,13 +361,14 @@ int profiler_t::run_from_trace() {
       pstate_->pop_callstack(pstate_->get_curpid());
     }
 
-    loop_cntr++;
-    if (loop_cntr % SPIKE_LOG_FLUSH_PERIOD == 0) {
-      trace_t pctrace = this->run_trace();
-      this->clear_run_trace();
+    if (step.val) {
+      pctrace.push_back({pc, get_asid(hartid), step.time});
+    }
 
-      logger_->submit_trace_to_threadpool(pctrace);
+    if ((uint32_t)pctrace.size() > SPIKE_LOG_FLUSH_PERIOD) {
       logger_->submit_packet_trace_to_threadpool();
+      logger_->submit_trace_to_threadpool(pctrace);
+      pctrace.clear();
     }
   }
   logger_->flush_packet_trace_to_threadpool();
@@ -369,9 +379,6 @@ int profiler_t::run_from_trace() {
 
 void profiler_t::process_callstack() {
   pprintf("Start stack unwinding\n");
-
-  // FIXME : just increment cycle every insn
-  uint64_t cycle = 0;
   uint64_t trace_cnt = logger_->get_trace_idx();
 
   for (uint64_t i = 0; i < trace_cnt; i++) {
@@ -386,8 +393,9 @@ void profiler_t::process_callstack() {
     std::vector<std::string> words;
     while (std::getline(spike_trace, line)) {
       split(words, line);
-      uint64_t addr = std::stoull(words[0], &sz, 16);
-      uint64_t asid = std::stoull(words[1], &sz, 10);
+      uint64_t addr  = std::stoull(words[0], &sz, 16);
+      uint64_t asid  = std::stoull(words[1], &sz, 10);
+      uint64_t cycle = std::stoull(words[2], &sz, 10);
       words.clear();
 
       auto asid_to_bin = pstate_->asid2bin();
@@ -400,7 +408,6 @@ void profiler_t::process_callstack() {
       } else {
         stack_unwinder->add_instruction(addr, cycle, profiler::KERNEL);
       }
-      cycle++;
     }
   }
 }

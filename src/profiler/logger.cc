@@ -7,13 +7,13 @@
 
 namespace profiler {
 
-logger_t::logger_t(std::string pctrace_outdir)
-  : pctrace_outdir_(pctrace_outdir)
+logger_t::logger_t(std::string outdir)
+  : pctrace_outdir_(outdir + "/traces")
 {
   pctrace_loggers_.start(4);
   packet_loggers_.start(1);
 
-  proflog_tp_ = fopen("./out/PROF-LOGS-THREADPOOL", "w");
+  proflog_tp_ = fopen((outdir + "/PROF-EVENT-LOGS").c_str(), "w");
   if (proflog_tp_ == NULL) {
     fprintf(stderr, "Unable to open log file PROF-LOGS-THREADPOOL\n");
     exit(-1);
@@ -31,16 +31,22 @@ void logger_t::stop() {
 std::string logger_t::spiketrace_filename(uint64_t idx) {
   std::string sfx;
   if (idx < 10) {
-    sfx = "000000" + std::to_string(idx);
+    sfx = "000000000" + std::to_string(idx);
   } else if (idx < 100) {
-    sfx = "00000" + std::to_string(idx);
+    sfx = "00000000" + std::to_string(idx);
   } else if (idx < 1000) {
-    sfx = "0000" + std::to_string(idx);
+    sfx = "0000000" + std::to_string(idx);
   } else if (idx < 10000) {
-    sfx = "000" + std::to_string(idx);
+    sfx = "000000" + std::to_string(idx);
   } else if (idx < 100000) {
-    sfx = "00" + std::to_string(idx);
+    sfx = "00000" + std::to_string(idx);
   } else if (idx < 1000000) {
+    sfx = "0000" + std::to_string(idx);
+  } else if (idx < 10000000) {
+    sfx = "000" + std::to_string(idx);
+  } else if (idx < 100000000) {
+    sfx = "00" + std::to_string(idx);
+  } else if (idx < 1000000000) {
     sfx = "0" + std::to_string(idx);
   } else {
     sfx = std::to_string(idx);

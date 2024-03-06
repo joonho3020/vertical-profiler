@@ -12,7 +12,7 @@ namespace profiler {
 
 class logger_t {
 public:
-  logger_t(std::string pctrace_outdir);
+  logger_t(std::string outdir);
   ~logger_t();
 
   void submit_trace_to_threadpool(trace_t& trace);
