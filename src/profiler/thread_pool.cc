@@ -20,7 +20,7 @@ namespace profiler {
 void print_insn_logs(trace_t trace, std::string oname) {
   std::ofstream os(oname, std::ofstream::out);
   for (auto& t : trace) {
-    os << std::hex << t.pc << " " << std::dec << t.asid << " " << t.prv << " " << t.prev_prv << "\n";
+    os << std::hex << t.pc << " " << std::dec << t.asid << " " << t.cycle << "\n";
   }
   os.close();
 }
@@ -30,6 +30,5 @@ void print_event_logs(std::vector<perfetto::packet_t> trace, FILE* ofile) {
     pkt.print(ofile);
   }
 }
-
 
 } // namespace profiler
