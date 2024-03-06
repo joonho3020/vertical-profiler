@@ -53,6 +53,8 @@ typedef std::optional<reg_t> optreg_t;
 #define k_finish_task_switch "finish_task_switch.isra.0"
 #define k_finish_task_switch_prev_arg 0
 
+/* #define CSR_SATP "satp" */
+/* #define KERNEL "k" */
 const std::string KERNEL = "k";
 const std::string PROF_CSR_SATP = "satp";
 

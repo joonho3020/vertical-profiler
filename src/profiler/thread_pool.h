@@ -15,8 +15,10 @@
 #include <fstream>
 #include <string>
 
+#include <riscv/cfg.h>
 #include "types.h"
 #include "perfetto_trace.h"
+#include "../spike-top/processor_lib.h"
 
 namespace profiler {
 
@@ -27,7 +29,7 @@ typedef std::function<void(T, S)> job_t;
 public:
 
   void start(uint32_t max_concurrency) {
-    const uint32_t num_threads = std::min(
+    const uint32_t num_threads = std::max(
         std::thread::hardware_concurrency()/16,
         max_concurrency);
     for (uint32_t ii = 0; ii < num_threads; ++ii) {
@@ -101,6 +103,9 @@ private:
   std::queue<T> traces;
   std::queue<S> ofnames;
 };
+
+void print_insn_logs(trace_t trace, std::string ofname);
+void print_event_logs(std::vector<perfetto::packet_t> trace, FILE* ofile);
 
 } // namespace profiler
 
