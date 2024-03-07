@@ -29,7 +29,7 @@
 
 extern device_factory_t* clint_factory;
 extern device_factory_t* plic_factory;
-extern device_factory_t* ns16550_factory;
+extern device_factory_t* ns16550_lib_factory;
 
 sim_lib_t::sim_lib_t(const cfg_t *cfg, bool halted,
         std::vector<std::pair<reg_t, abstract_mem_t*>> mems,
@@ -107,11 +107,8 @@ sim_lib_t::sim_lib_t(const cfg_t *cfg, bool halted,
   std::vector<const device_factory_t*> device_factories = {};
   device_factories.push_back(clint_factory); // clint must be element 0
   device_factories.push_back(plic_factory);  // plic must be element 1
-
   if (!from_rtl_trace) {
-    device_factories.push_back(ns16550_factory);
-  } else {
-    assert(plugin_device_factories.size() > 0);
+    device_factories.push_back(ns16550_lib_factory);
   }
 
   device_factories.insert(device_factories.end(),
