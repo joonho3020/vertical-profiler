@@ -57,8 +57,6 @@ clint_ganged_t::clint_ganged_t(const simif_t* sim, uint64_t freq_hz, bool real_t
 }
 
 void clint_ganged_t::tick(reg_t rtc_ticks) {
-/* printf("- clint ganged tick\n"); */
-
   if (real_time) {
    struct timeval now;
    uint64_t diff_usecs;
@@ -74,8 +72,6 @@ void clint_ganged_t::tick(reg_t rtc_ticks) {
 bool clint_ganged_t::load(reg_t addr, size_t len, uint8_t* bytes) {
   if (len > 8)
     return false;
-
-/* printf("- clint ganged load addr: 0x%" PRIx64 " len: %lu\n", addr, len); */
 
   tick(0);
 
@@ -107,8 +103,6 @@ bool clint_ganged_t::load(reg_t addr, size_t len, uint8_t* bytes) {
 bool clint_ganged_t::store(reg_t addr, size_t len, const uint8_t* bytes) {
   if (len > 8)
     return false;
-
-/* printf("- clint gagned store addr: 0x%" PRIx64 " len: %lu\n", addr, len); */
 
   if (addr >= MSIP_BASE && addr < MTIMECMP_BASE) {
     if (len == 8) {

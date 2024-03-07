@@ -140,7 +140,7 @@ void profiler_t::profile_kernel_func_at_pc(
 
 objdump_parser_t* profiler_t::get_objdump_parser(std::string oname) {
 #ifdef PROFILER_DEBUG
-  if (objdumps.find(oname) == objdumps.end()) {
+  if (objdumps_.find(oname) == objdumps_.end()) {
     passert("Objdump mismatch: %s\n", oname.c_str());
   }
 #endif
@@ -217,13 +217,13 @@ int profiler_t::run() {
     for (size_t i = 0, cnt = pctrace.size(); i < cnt; i++) {
       reg_t pc = pctrace[i].pc;
       if (pstate_->found_registered_func_start_addr(pc).has_value()) {
+#ifdef PROFILER_DEBUG
+        pprintf("Rewind PC: 0x%" PRIx64 "\n", pc);
+#endif
         rewind = true;
         fwd_steps = i;
         break;
       } else if (pstate_->found_registered_func_exit_addr(pc).has_value()) {
-#ifdef PROFILER_DEBUG
-/* pdebug("Exit PC: 0x%" PRIx64 "\n", pc); */
-#endif
         popcnt++;
       }
     }
@@ -231,14 +231,6 @@ int profiler_t::run() {
     MEASURE_AVG_TIME(trace_check_s, trace_check_e, trace_check_us, trace_check_cnt);
 
     while (popcnt--) {
-#ifdef PROFILER_DEBUG
-      if (fstacks.find(cur_pid) == fstacks.end()) {
-        passert("Could not find callstack for PID %u\n", cur_pid);
-      }
-      if (fstacks[cur_pid].size() == 0) {
-        passert("Callstack for PID %u empty, popcnt: %d\n", cur_pid, popcnt);
-      }
-#endif
       // TODO : What happens when we need to pop on when there is a context switch?
       // Can we guarantee that we can use the cur_pid?
       pstate_->pop_callstack(pstate_->get_curpid());
