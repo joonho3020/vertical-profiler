@@ -46,6 +46,7 @@ spike_top_lib = library('spike_top_lib',
     'spike-top/mmu_lib.cc',
     'spike-top/sim_lib.cc',
     'spike-top/ganged_devices.cc',
+    'spike-top/ns16550_lib.cc',
     'spike-top/arch-state.pb.cc'
   ],
   link_with : [
