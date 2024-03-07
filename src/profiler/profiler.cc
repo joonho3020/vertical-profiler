@@ -381,7 +381,7 @@ void profiler_t::process_callstack() {
   pprintf("Start stack unwinding\n");
   uint64_t trace_cnt = logger_->get_trace_idx();
 
-  for (uint64_t i = 0; i < trace_cnt; i++) {
+  for (uint64_t i = 0; i < trace_cnt - 1; i++) {
     std::string path = logger_->get_pctracedir() + "/" + logger_->spiketrace_filename(i);
     std::ifstream spike_trace = std::ifstream(path, std::ios::binary);
     if (!spike_trace) {
