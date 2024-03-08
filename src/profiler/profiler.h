@@ -72,9 +72,7 @@ public:
 
   ~profiler_t();
 
-
 public:
-  // user facing APIs
   virtual int run() override;
   virtual int run_from_trace() override;
 
@@ -93,12 +91,12 @@ private:
   bool user_space_addr(addr_t va);
   FILE* gen_outfile(std::string outdir, std::string filename);
 
-  std::map<std::string, objdump_parser_t*> objdumps_;
-  profiler_state_t* pstate_;
   logger_t* logger_;
+  profiler_state_t* pstate_;
+  stack_unwinder_t* stack_unwinder_;
 
-  // Stuff for stack unwinding
-  stack_unwinder_t* stack_unwinder;
+  std::string prof_outdir_;
+  std::map<std::string, objdump_parser_t*> objdumps_;
 
   uint64_t SPIKE_LOG_FLUSH_PERIOD = 10000;
 };

@@ -67,7 +67,8 @@ profiler_t::profiler_t(
   : sim_lib_t(cfg, halted, mems, plugin_device_factories, args, dm_config,
           log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file,
           rtl_tracefile_name,
-          false /* don't serialize_mem */)
+          false /* don't serialize_mem */),
+  prof_outdir_(prof_outdir)
 {
   for (auto p: objdump_paths) {
     objdumps_.insert({p.first, new objdump_parser_t(p.second)});
@@ -76,7 +77,7 @@ profiler_t::profiler_t(
   FILE *callstack_outfile = gen_outfile(prof_outdir, "PROF-CALLSTACK");
   this->logger_ = new logger_t(prof_outdir);
   this->pstate_ = new profiler_state_t();
-  this->stack_unwinder = new stack_unwinder_t(dwarf_paths, callstack_outfile);
+  this->stack_unwinder_ = new stack_unwinder_t(dwarf_paths, callstack_outfile);
 
   auto it = objdumps_.find(profiler::KERNEL);
   if (it == objdumps_.end()) {
@@ -116,7 +117,7 @@ profiler_t::~profiler_t() {
   }
   objdumps_.clear();
 
-  delete this->stack_unwinder;
+  delete this->stack_unwinder_;
   delete this->pstate_;
   delete this->logger_;
 }
@@ -294,14 +295,8 @@ int profiler_t::run() {
 
   logger_->flush_packet_trace_to_threadpool();
   logger_->stop();
+  pstate_->dump_asid2bin_mapping(prof_outdir_);
   auto rc = stop_sim();
-
-  std::ofstream os("ASID-MAPPING", std::ofstream::out);
-  auto asid_to_bin = pstate_->asid2bin();
-  for (auto x : asid_to_bin) {
-    os << x.first << " " << x.second << "\n";
-  }
-  os.close();
 
   PRINT_TIME_STAT("RUN TOOK", run_us);
   PRINT_AVG_TIME_STAT("CKPT", ckpt_us, ckpt_cnt);
@@ -354,6 +349,11 @@ int profiler_t::run_from_trace() {
     }
 
     if (step.val) {
+      // FIXME : In FireSim's kernel, the ASID allocator is disabled.
+      // That is, the kernel is configuring the HW to use 0 bits for ASID.
+      // This basically means that the TLB is flushed on every context switch
+      // rather than using ASIDs. Hence, we cannot use the ASID to binary
+      // mapping anymore in the RTL lockstep mode.
       pctrace.push_back({pc, get_asid(hartid), step.time});
     }
 
@@ -365,6 +365,7 @@ int profiler_t::run_from_trace() {
   }
   logger_->flush_packet_trace_to_threadpool();
   logger_->stop();
+  pstate_->dump_asid2bin_mapping(prof_outdir_);
   auto rc = stop_sim();
   return rc;
 }
@@ -396,9 +397,9 @@ void profiler_t::process_callstack() {
         std::string binpath = it->second;
         std::vector<std::string> subpath;
         split(subpath, binpath, '/');
-        stack_unwinder->add_instruction(addr, cycle, subpath.back());
+        stack_unwinder_->add_instruction(addr, cycle, subpath.back());
       } else {
-        stack_unwinder->add_instruction(addr, cycle, profiler::KERNEL);
+        stack_unwinder_->add_instruction(addr, cycle, profiler::KERNEL);
       }
     }
   }

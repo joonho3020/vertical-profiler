@@ -1,6 +1,7 @@
 
 #include <vector>
 #include <optional>
+#include <fstream>
 #include "profiler_state.h"
 #include "types.h"
 #include "callstack_info.h"
@@ -95,6 +96,14 @@ optreg_t profiler_state_t::found_registered_func_exit_addr(reg_t va) {
 
 function_t* profiler_state_t::get_profile_func(reg_t va) {
   return prof_pc_to_func_[va];
+}
+
+void profiler_state_t::dump_asid2bin_mapping(std::string outdir) {
+  std::ofstream os(outdir + "/ASID-MAPPING", std::ofstream::out);
+  for (auto x : asid_to_bin_) {
+    os << x.first << " " << x.second << "\n";
+  }
+  os.close();
 }
 
 }; // namespace Profiler

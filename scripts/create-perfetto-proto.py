@@ -5,7 +5,7 @@ import os
 import utils
 
 parser = argparse.ArgumentParser(description='Generate a protobuf trace for perfetto')
-parser.add_argument('--perfetto-trace', '-p', type=str, default='PROF-LOGS-THREADPOOL', help='raw trace from the profiler')
+parser.add_argument('--perfetto-trace', '-p', type=str, default='PROF-LOGS-THREADPOOL', help='raw trace file from the profiler')
 parser.add_argument('--out-file',       '-f', type=str, default='profiler.perfetto',    help='output protobuf file name')
 parser.add_argument('--out-dir',        '-d', type=str, default='out',                  help='output directory name')
 args = parser.parse_args()

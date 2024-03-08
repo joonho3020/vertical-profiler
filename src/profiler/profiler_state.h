@@ -42,6 +42,8 @@ public:
 
   function_t* get_profile_func(reg_t va);
 
+  void dump_asid2bin_mapping(std::string outdir);
+
 private:
   std::map<addr_t, function_t*> prof_pc_to_func_;
   std::vector<addr_t> func_pc_prof_start_;

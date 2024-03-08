@@ -23,11 +23,17 @@ def profiler_run_cmd(config: Dict) -> str:
   spike_logs  = f"--log={os.path.join(outdir, config['spike_log'])}"
   prof_out    = f"--prof-out={config['outdir']}"
   kernel_info = f"--kernel-info=\"{config['kernel_dump']},{config['kernel_dwarf']}\""
+
+  user_bins = config['user_bins']
+  user_info = ""
+  for ub in user_bins:
+    user_info += f"--user-info=\"{ub},{ub}\""
+
   spikelib    = f"--extlib={config['libspikedevs']}"
   iceblk      = f"--device=iceblk,img={config['iceblk_img']}"
   workload    = f"{config['bin']} | tee {os.path.join(outdir, 'PROFILER-LOGS')}"
 
-  base_cmd_list = [prof_bin, spike_logs, prof_out, kernel_info, spikelib, iceblk]
+  base_cmd_list = [prof_bin, spike_logs, prof_out, kernel_info, user_info, spikelib, iceblk]
 
   if spike_only_mode:
     cmdlist = base_cmd_list + [workload]
