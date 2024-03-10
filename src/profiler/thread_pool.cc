@@ -25,9 +25,10 @@ void print_insn_logs(trace_t trace, std::string oname) {
   os.close();
 }
 
-void print_event_logs(std::vector<perfetto::packet_t> trace, FILE* ofile) {
+void print_event_logs(std::vector<perfetto::packet_t*> trace, FILE* ofile) {
   for (auto &pkt : trace) {
-    pkt.print(ofile);
+    pkt->print(ofile);
+    delete pkt;
   }
 }
 

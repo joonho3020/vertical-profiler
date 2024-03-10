@@ -87,6 +87,8 @@ public:
   void process_callstack();
   reg_t get_pc(int hartid);
 
+  uint64_t PROF_PERFETTO_TRACKID_BASE = 10000;
+
 private:
   bool user_space_addr(addr_t va);
   FILE* gen_outfile(std::string outdir, std::string filename);

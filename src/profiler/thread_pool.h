@@ -105,7 +105,7 @@ private:
 };
 
 void print_insn_logs(trace_t trace, std::string ofname);
-void print_event_logs(std::vector<perfetto::packet_t> trace, FILE* ofile);
+void print_event_logs(std::vector<perfetto::packet_t*> trace, FILE* ofile);
 
 } // namespace profiler
 

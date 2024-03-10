@@ -13,8 +13,8 @@ logger_t::logger_t(std::string outdir)
   pctrace_loggers_.start(4);
   packet_loggers_.start(1);
 
-  proflog_tp_ = fopen((outdir + "/PROF-EVENT-LOGS").c_str(), "w");
-  if (proflog_tp_ == NULL) {
+  prof_event_logfile_ = fopen((outdir + "/PROF-EVENT-LOGS").c_str(), "w");
+  if (prof_event_logfile_ == NULL) {
     fprintf(stderr, "Unable to open log file PROF-LOGS-THREADPOOL\n");
     exit(-1);
   }
@@ -60,7 +60,7 @@ void logger_t::submit_trace_to_threadpool(trace_t& trace) {
   pctrace_loggers_.queue_job(print_insn_logs, trace, name);
 }
 
-void logger_t::submit_packet(perfetto::packet_t pkt) {
+void logger_t::submit_packet(perfetto::packet_t* pkt) {
   packet_traces_.push_back(pkt);
 }
 
@@ -71,7 +71,7 @@ void logger_t::submit_packet_trace_to_threadpool() {
 }
 
 void logger_t::flush_packet_trace_to_threadpool() {
-  packet_loggers_.queue_job(print_event_logs, packet_traces_, proflog_tp_);
+  packet_loggers_.queue_job(print_event_logs, packet_traces_, prof_event_logfile_);
   packet_traces_.clear();
 }
 

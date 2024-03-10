@@ -6,6 +6,7 @@
 
 #include "../spike-top/processor_lib.h"
 #include "thread_pool.h"
+#include "mem_pool.h"
 #include "perfetto_trace.h"
 
 namespace profiler {
@@ -17,7 +18,7 @@ public:
 
   void submit_trace_to_threadpool(trace_t& trace);
 
-  void submit_packet(perfetto::packet_t pkt);
+  void submit_packet(perfetto::packet_t* pkt);
   void submit_packet_trace_to_threadpool();
   void flush_packet_trace_to_threadpool();
 
@@ -28,14 +29,14 @@ public:
   std::string get_pctracedir() { return pctrace_outdir_; }
 
 private:
-  std::string pctrace_outdir_;
   uint64_t trace_idx_ = 0;
-
+  std::string pctrace_outdir_;
   threadpool_t<trace_t, std::string> pctrace_loggers_;
 
-  std::vector<perfetto::packet_t> packet_traces_;
-  threadpool_t<std::vector<perfetto::packet_t>, FILE*> packet_loggers_;
-  FILE* proflog_tp_;
+  FILE* prof_event_logfile_;
+  std::vector<perfetto::packet_t*> packet_traces_;
+  threadpool_t<std::vector<perfetto::packet_t*>, FILE*> packet_loggers_;
+
   const uint32_t PACKET_TRACE_FLUSH_THRESHOLD = 1000;
 };
 

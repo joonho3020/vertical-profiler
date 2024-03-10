@@ -1,18 +1,18 @@
 #include <string>
 #include "../profiler/perfetto_trace.h"
 
+using namespace profiler::perfetto;
 
-void add_packet(profiler::perfetto::event_trace_t* trace,
+void add_packet(event_trace_t* trace,
                 std::string s,
-                profiler::perfetto::PACKET_TYPE t,
+                PACKET_TYPE t,
                 uint64_t time) {
-  profiler::perfetto::packet_t tp(s, t, time);
+  trackevent_packet_t* tp = new trackevent_packet_t(s, t, 0, time);
   trace->add_packet(tp);
 }
 
 int main() {
-  profiler::perfetto::event_trace_t* trace =
-    new profiler::perfetto::event_trace_t("test-perfetto.txt");
+  event_trace_t* trace = new event_trace_t("test-perfetto.txt");
 
   add_packet(trace, "ONE",    profiler::perfetto::TYPE_SLICE_BEGIN, 100);
   add_packet(trace, "ONE",    profiler::perfetto::TYPE_SLICE_END  , 200);

@@ -16,21 +16,41 @@ enum PACKET_TYPE {
   TYPE_INSTANT     = 2
 };
 
-class packet_t { // corresponds to the trace_packet.proto
+class packet_t {
 public:
-  packet_t(std::string name, PACKET_TYPE type_enum, uint64_t timestamp);
-  void print(FILE* of);
+  packet_t(std::string name);
+  virtual void print(FILE* of) { }
+
+protected:
+  std::string name_;
+};
+
+// corresponds to the trace_packet.proto
+class trackevent_packet_t : public packet_t {
+public:
+  trackevent_packet_t(std::string name, PACKET_TYPE type_enum,
+                      int trackid, uint64_t timestamp);
+  virtual void print(FILE* of) override;
 
 private:
-  std::string name;
-  std::string type;
-  uint64_t timestamp;
+  std::string type_;
+  int trackid_;
+  uint64_t timestamp_;
+};
+
+class trackdescriptor_packet_t : public packet_t {
+public:
+  trackdescriptor_packet_t(std::string name, int trackid);
+  virtual void print(FILE* of) override;
+
+private:
+  int trackid_;
 };
 
 class event_trace_t {
 public:
   event_trace_t(std::string ofname);
-  void add_packet(packet_t tp);
+  void add_packet(packet_t* tp);
   void close();
 
 private:

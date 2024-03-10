@@ -26,26 +26,12 @@
 #include "../spike-top/sim_lib.h"
 #include "../spike-top/processor_lib.h"
 
-// TODO : 
-// 1. Logging the outputs of the profiler is becoming slow (extra 30 second to boot linux).
-//    Need to optimize this.
-//
-// 3. Better algorithm for checking if a function is called on top of a parent
-// function. 
-//  - TODO : return CallStackInfo* in function_t
-//
+// 1. Currently the perfetto packets are allocated in "callstack_info.cc"
+// and freed in "thread_pool.cc". I don't like this. It obfuscates where
+// memory is allocated & freed. Need to come up with a better way of
+// managing perfetto packets.
 // 5. Check robustness of func_args_reg & func_ret_reg of ObjdumpParser
-//
 // 6. Auto generate the consts section regarding function arguments & offsetof
-//
-// 7. Separate out the profiling part & the post-processing part
-//    -> remove the StackUnwinder from profiler_t & make this process into a
-//    separate main??
-//    -> Or do we have to???? The post-processing requires all the metadata
-//    from the profiler anyways.
-//    -> maybe the correct way to do things is to output some logs during the
-//    profiling run, and when it is finished, read those logs while using the
-//    profiling metadata directly (which is how the stack-unwinder is implemented)
 
 namespace profiler {
 
@@ -75,9 +61,13 @@ profiler_t::profiler_t(
   }
 
   FILE *callstack_outfile = gen_outfile(prof_outdir, "PROF-CALLSTACK");
-  this->logger_ = new logger_t(prof_outdir);
-  this->pstate_ = new profiler_state_t();
   this->stack_unwinder_ = new stack_unwinder_t(dwarf_paths, callstack_outfile);
+  this->pstate_ = new profiler_state_t();
+  this->logger_ = new logger_t(prof_outdir);
+
+  this->logger_->submit_packet(new perfetto::trackdescriptor_packet_t(
+        "FOOB_PROF",
+        PROF_PERFETTO_TRACKID_BASE));
 
   auto it = objdumps_.find(profiler::KERNEL);
   if (it == objdumps_.end()) {
@@ -353,7 +343,10 @@ int profiler_t::run_from_trace() {
       // That is, the kernel is configuring the HW to use 0 bits for ASID.
       // This basically means that the TLB is flushed on every context switch
       // rather than using ASIDs. Hence, we cannot use the ASID to binary
-      // mapping anymore in the RTL lockstep mode.
+      // mapping anymore in the RTL lockstep mode. Even for the functional
+      // simulation, I don't think that using ASID to binary mapping is
+      // a very good solution. Need to come up with a better datastructure
+      // for this.
       pctrace.push_back({pc, get_asid(hartid), step.time});
     }
 

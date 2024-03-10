@@ -588,7 +588,7 @@ int main(int argc, char** argv)
   } else {
     return_code = p.run_from_trace();
   }
-  p.process_callstack();
+/* p.process_callstack(); */
 
   return return_code;
 }

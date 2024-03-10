@@ -67,9 +67,10 @@ opt_cs_entry_t kf_do_execveat_common::update_profiler(profiler_t* p) {
   std::string filepath = find_exec_syscall_filepath(p, proc);
 
   p->pstate()->update_pid2bin(pid, filepath);
-  p->logger()->submit_packet(perfetto::packet_t(
+  p->logger()->submit_packet(new perfetto::trackevent_packet_t(
         std::string(k_do_execveat_common),
         perfetto::TYPE_INSTANT,
+        p->PROF_PERFETTO_TRACKID_BASE,
         p->pstate()->get_timestamp()));
 
   return callstack_entry_t(k_do_execveat_common, filepath);
@@ -122,9 +123,10 @@ opt_cs_entry_t kf_set_mm_asid::update_profiler(profiler_t* p) {
         asid, pid, bin.c_str());
 
     p->pstate()->update_asid2bin(asid, bin);
-    p->logger()->submit_packet(perfetto::packet_t(
+    p->logger()->submit_packet(new perfetto::trackevent_packet_t(
           std::string(k_set_mm_asid),
           perfetto::TYPE_INSTANT,
+          p->PROF_PERFETTO_TRACKID_BASE,
           p->pstate()->get_timestamp()));
 
     if (pid != p->pstate()->get_curpid()) {
@@ -166,9 +168,10 @@ opt_cs_entry_t kf_kernel_clone::update_profiler(profiler_t* p) {
   pprintf("Forked p: %u c: %u bin: %s\n", parpid, newpid, new_task_name.c_str());
 
   p->pstate()->update_pid2bin(newpid, new_task_name);
-  p->logger()->submit_packet(perfetto::packet_t(
+  p->logger()->submit_packet(new perfetto::trackevent_packet_t(
         std::string(k_kernel_clone),
         perfetto::TYPE_INSTANT,
+        p->PROF_PERFETTO_TRACKID_BASE,
         p->pstate()->get_timestamp()));
 
   return {};
@@ -212,9 +215,10 @@ void kf_pick_next_task_fair::get_pid_next_task(profiler_t *p, processor_lib_t* p
   }
 
   // TODO : Add metadata which indicates whether CFS was able to choose a task or  not
-  p->logger()->submit_packet(perfetto::packet_t(
+  p->logger()->submit_packet(new perfetto::trackevent_packet_t(
         std::string(k_pick_next_task_fair),
         perfetto::TYPE_INSTANT,
+        p->PROF_PERFETTO_TRACKID_BASE,
         p->pstate()->get_timestamp()));
 }
 
@@ -234,15 +238,17 @@ opt_cs_entry_t kf_finish_task_switch::update_profiler(profiler_t* p) {
   auto pid2bin = p->pstate()->pid2bin();
 
   std::string prev_bin = pid2bin[prev_pid];
-  p->logger()->submit_packet(perfetto::packet_t(
+  p->logger()->submit_packet(new perfetto::trackevent_packet_t(
         prev_bin,
         perfetto::TYPE_SLICE_END,
+        p->PROF_PERFETTO_TRACKID_BASE,
         p->pstate()->get_timestamp()));
 
   std::string cur_bin = pid2bin[cur_pid];
-  p->logger()->submit_packet(perfetto::packet_t(
+  p->logger()->submit_packet(new perfetto::trackevent_packet_t(
         cur_bin,
         perfetto::TYPE_SLICE_BEGIN,
+        p->PROF_PERFETTO_TRACKID_BASE,
         p->pstate()->get_timestamp()));
 
   return callstack_entry_t(k_finish_task_switch, "");
