@@ -8,7 +8,7 @@ cd chipyard
 cd ..
 
 source env.sh
-cd prof/protobuf
+cd src/protobuf
 git submodule update --init --recursive
 ./autogen.sh
 

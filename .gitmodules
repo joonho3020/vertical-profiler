@@ -1,14 +1,14 @@
 [submodule "chipyard"]
 	path = chipyard
 	url = https://github.com/ucb-bar/chipyard.git
-[submodule "prof/riscv-isa-sim-private"]
-	path = prof/riscv-isa-sim-private
+[submodule "src/riscv-isa-sim-private"]
+	path = src/riscv-isa-sim-private
 	url = git@github.com:joonho3020/riscv-isa-sim-profiler.git
-[submodule "prof/spike-devices"]
-	path = prof/spike-devices
+[submodule "src/spike-devices"]
+	path = src/spike-devices
 	url = git@github.com:ucb-bar/spike-devices.git
-[submodule "prof/protobuf"]
-	path = prof/protobuf
+[submodule "src/protobuf"]
+	path = src/protobuf
 	url = git@github.com:protocolbuffers/protobuf.git
 [submodule "perfetto"]
 	path = src/perfetto
