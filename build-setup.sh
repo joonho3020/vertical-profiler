@@ -22,5 +22,14 @@ make clean || true
 make -j64
 make install
 
-conda install meson
+cd ../../riscv-isa-sim-private
+mkdir build && cd build
+../configure --prefix=$RISCV --with-boost=no --with-boost-asio=no --with-boost-regex=no
+make -j$(nproc)
+make install
+
+cd ../../spike-devices
+make -j$(nproc)
+
+pip install meson
 pip install pyright
