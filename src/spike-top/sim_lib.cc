@@ -747,18 +747,6 @@ bool sim_lib_t::ganged_step(rtl_step_t step, int hartid) {
           w_data < (ROCKETCHIP_MEM0_BASE + ROCKETCHIP_MEM0_SIZE)) {
         magic_addrs.insert(w_data);
       }
-
-#ifdef DEBUG_MEMWRITES
-      auto mmu = proc->get_mmu();
-      reg_t paddr = mmu->translate(
-          mmu->generate_access_info(
-            waddr,
-            STORE,
-            {false, false, false}),
-          std::get<2>(memwrite));
-      printf("TRACE memwrite paddr: 0x%" PRIx64 " w_data: 0x%" PRIx64 " time: %" PRIu64 " v: %d pc: 0x%" PRIx64 " insn: 0x%" PRIx64 " e: %d i: %d c: %d hw: %d wd: %" PRIu64 " prv: %d\n",
-          paddr, w_data, time, val, pc, insn, except, intrpt, cause, has_w, wdata, priv);
-#endif
     }
 
     bool scalar_wb = false;
@@ -804,11 +792,7 @@ bool sim_lib_t::ganged_step(rtl_step_t step, int hartid) {
         // Override reads from some CSRs
         uint64_t csr_addr = (insn >> 20) & 0xfff;
         bool csr_read = (insn & 0x7f) == 0x73;
-#ifdef DEBUG
-        if (csr_read)
-          printf("CSR read %lx\n", csr_addr);
-#endif
-        if (csr_read && (
+        bool csr_override = csr_read &&
               (csr_addr == CSR_MISA)       ||
               (csr_addr == CSR_MCOUNTEREN) ||
               (csr_addr == CSR_MCAUSE)     ||
@@ -823,39 +807,10 @@ bool sim_lib_t::ganged_step(rtl_step_t step, int hartid) {
               (csr_addr == CSR_INSTRET)    ||
               (csr_addr == CSR_SATP)    ||
               (csr_addr >= CSR_TSELECT && csr_addr <= CSR_MCONTEXT) ||
-              (csr_addr >= CSR_PMPADDR0 && csr_addr <= CSR_PMPADDR63)
-              )) {
-/* #define DEBUG_READ_OVERRIDE */
-#ifdef DEBUG_READ_OVERRIDE
-          printf("CSR override: %" PRIu64 "\n", time);
-#endif
-          s->XPR.write(rd, wdata);
-        } else if (ignore_read)  {
-          // Don't check reads from tohost, reads from magic memory, or reads
-          // from clint Technically this could be buggy because log_mem_read
-          // only reports vaddrs, but no software ever should access
-          // tohost/fromhost/clint with vaddrs anyways
-/* #define DEBUG_READ_OVERRIDE */
-#ifdef DEBUG_READ_OVERRIDE
-          if (sc_read)
-            printf("Ignoring SC reads\n");
-          if (!mem_read.empty()) {
-            if (magic_addrs.count(mem_read_addr))
-              printf("Reading from magic memory\n");
-            if (device_read)
-              printf("Reading from MMIO device\n");
-            if (lr_read)
-              printf("Reading from LR\n");
-            if (mem_read_addr == tohost_addr)
-              printf("Reading from tohost\n");
-            if (mem_read_addr == fromhost_addr)
-              printf("Reading from fromhost\n");
-          }
-          printf("cy: %" PRIu64 " Read override mem[%lx] %llx -> %llx\n",
-              time, mem_read_addr, s->XPR[rd], wdata);
-#endif
-          s->XPR.write(rd, wdata);
-        } else if ((type == 0) && (wdata != regwrite.second.v[0])) {
+              (csr_addr >= CSR_PMPADDR0 && csr_addr <= CSR_PMPADDR63);
+        bool mismatch = (type == 0) && (wdata != regwrite.second.v[0]);
+        bool override_read = csr_override || ignore_read || mismatch;
+        if (override_read) {
           s->XPR.write(rd, wdata);
         } else if ((type == 1) && (wdata != regwrite.second.v[0])) {
           printf("%" PRIu64 " FP wdata mismatch: spike %" PRIu64 " fsim %" PRIu64 "\n",

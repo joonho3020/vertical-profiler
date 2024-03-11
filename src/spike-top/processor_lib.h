@@ -15,6 +15,27 @@ struct trace_entry_t {
   reg_t cycle;
 };
 
+struct rtl_step_t {
+  bool val;
+  uint64_t time;
+  uint64_t pc;
+  uint64_t insn;
+  bool except;
+  bool intrpt;
+  int cause;
+  bool has_w;
+  uint64_t wdata;
+  int priv;
+
+  rtl_step_t(bool val, uint64_t time, uint64_t pc, uint64_t insn,
+      bool except, bool intrpt, int cause, bool has_w, uint64_t wdata,
+      int priv)
+    : val(val), time(time), pc(pc), insn(insn), except(except),
+    intrpt(intrpt), cause(cause), has_w(has_w), wdata(wdata), priv(priv)
+  {
+  }
+};
+
 typedef std::vector<trace_entry_t> trace_t;
 
 class wait_for_interrupt_t {};
@@ -31,7 +52,7 @@ public:
   reg_t get_mcycle();
   trace_t& step_trace() { return trace; }
   virtual void step(size_t n) override;
-  void step_from_trace(uint64_t insn_bits, reg_t pc, reg_t wdata);
+  void step_from_trace(rtl_step_t step);
 
 private:
   trace_t trace;

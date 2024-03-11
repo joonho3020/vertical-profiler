@@ -32,27 +32,6 @@
 typedef std::map<char*, char*> pagemap;
 typedef std::vector<char*>     pagepool;
 
-struct rtl_step_t {
-  bool val;
-  uint64_t time;
-  uint64_t pc;
-  uint64_t insn;
-  bool except;
-  bool intrpt;
-  int cause;
-  bool has_w;
-  uint64_t wdata;
-  int priv;
-
-  rtl_step_t(bool val, uint64_t time, uint64_t pc, uint64_t insn,
-      bool except, bool intrpt, int cause, bool has_w, uint64_t wdata,
-      int priv)
-    : val(val), time(time), pc(pc), insn(insn), except(except),
-    intrpt(intrpt), cause(cause), has_w(has_w), wdata(wdata), priv(priv)
-  {
-  }
-};
-
 class sim_lib_t : public sim_t {
 public:
   sim_lib_t(const cfg_t *cfg, bool halted,
