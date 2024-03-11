@@ -6,7 +6,6 @@
 
 #include "../spike-top/processor_lib.h"
 #include "thread_pool.h"
-#include "mem_pool.h"
 #include "perfetto_trace.h"
 
 namespace profiler {

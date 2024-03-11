@@ -302,6 +302,14 @@ int profiler_t::run() {
 int profiler_t::run_from_trace() {
   init();
 
+  double run_us = 0.0;
+
+  uint64_t profiler_cnt = 0;
+  double   profiler_us  = 0.0;
+
+  uint64_t spike_cnt = 0;
+  double   spike_us  = 0.0;
+
   assert(rtl_tracefile_name);
   std::string line;
   std::string tracefile_string = std::string(rtl_tracefile_name);
@@ -312,17 +320,24 @@ int profiler_t::run_from_trace() {
   this->configure_log(true, true);
   this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
 
+  auto run_s = GET_TIME();
   while (std::getline(rtl_trace, line)) {
     uint64_t tohost_req = check_tohost_req();
     if (tohost_req)
       handle_tohost_req(tohost_req);
 
     rtl_step_t step = parse_line_into_rtltrace(line);
+    processor_lib_t* proc = get_core(hartid);
+
+    auto spike_s = GET_TIME();
     bool success = ganged_step(step, hartid);
     if (!success) {
       passert("ganged simulation failed!\n");
     }
+    auto spike_e = GET_TIME();
+    MEASURE_AVG_TIME(spike_s, spike_e, spike_us, spike_cnt);
 
+    auto profiler_s = GET_TIME();
     pstate_->update_timestamp(step.time);
 
     addr_t pc = this->get_pc(hartid);
@@ -338,11 +353,20 @@ int profiler_t::run_from_trace() {
     }
 
     logger_->submit_packet_trace_to_threadpool();
+    auto profiler_e = GET_TIME();
+    MEASURE_AVG_TIME(profiler_s, profiler_e, profiler_us, profiler_cnt);
   }
   logger_->flush_packet_trace_to_threadpool();
   logger_->stop();
   pstate_->dump_asid2bin_mapping(prof_outdir_);
   auto rc = stop_sim();
+
+  auto run_e = GET_TIME();
+  MEASURE_TIME(run_s, run_e, run_us);
+  PRINT_TIME_STAT("RUN TOOK", run_us);
+  PRINT_AVG_TIME_STAT("SPIKE", spike_us, spike_cnt);
+  PRINT_AVG_TIME_STAT("PROFILER", profiler_us, profiler_cnt);
+
   return rc;
 }
 

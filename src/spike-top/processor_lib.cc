@@ -216,6 +216,95 @@ void processor_lib_t::step(size_t n) {
   }
 }
 
+void processor_lib_t::step_from_trace(uint64_t insn_bits, reg_t pc, reg_t wdata) {
+  this->clear_waiting_for_interrupt();
+
+  insn_t insn = insn_t(insn_bits);
+  insn_func_t func = this->decode_insn(insn);
+  insn_fetch_t fetch = {func, insn_bits};
+  try {
+    execute_insn_fast(this, pc, fetch);
+  }
+  catch(trap_t& t) {
+    take_trap(t, pc);
+
+    // Trigger action takes priority over single step
+    auto match = TM.detect_trap_match(t);
+    if (match.has_value())
+      take_trigger_action(match->action, 0, state.pc, 0);
+    else if (unlikely(state.single_step == state.STEP_STEPPED)) {
+      state.single_step = state.STEP_NONE;
+      enter_debug_mode(DCSR_CAUSE_STEP);
+    }
+  }
+  catch (triggers::matched_t& t) {
+    if (mmu->matched_trigger) {
+      delete mmu->matched_trigger;
+      mmu->matched_trigger = NULL;
+    }
+    take_trigger_action(t.action, t.address, pc, t.gva);
+  }
+  catch(trap_debug_mode&) {
+    enter_debug_mode(DCSR_CAUSE_SWBP);
+  }
+  catch (wait_for_interrupt_t &t) {
+    // Return to the outer simulation loop, which gives other devices/harts a
+    // chance to generate interrupts.
+    //
+    // In the debug ROM this prevents us from wasting time looping, but also
+    // allows us to switch to other threads only once per idle loop in case
+    // there is activity.
+    in_wfi = true;
+  }
+  state.minstret->bump(1);
+  state.mcycle->bump(1);
+
+  bool lr_read = ((insn_bits & MASK_LR_D) == MATCH_LR_D) ||
+                 ((insn_bits & MASK_LR_W) == MATCH_LR_W);
+
+  bool sc_read = ((insn_bits & MASK_SC_D) == MATCH_SC_D) ||
+                 ((insn_bits & MASK_SC_W) == MATCH_SC_W);
+
+  bool ld = ((insn_bits & MASK_LB)    == MATCH_LB)      ||
+            ((insn_bits & MASK_LB_AQ) == MATCH_LB_AQ)   ||
+            ((insn_bits & MASK_LBU)   == MATCH_LBU)     ||
+            ((insn_bits & MASK_LD)    == MATCH_LD)      ||
+            ((insn_bits & MASK_LD_AQ) == MATCH_LD_AQ)   ||
+            ((insn_bits & MASK_LDU)   == MATCH_LDU)     ||
+            ((insn_bits & MASK_LH)    == MATCH_LH)      ||
+            ((insn_bits & MASK_LH_AQ) == MATCH_LH_AQ)   ||
+            ((insn_bits & MASK_LHU)   == MATCH_LHU)     ||
+            ((insn_bits & MASK_LQ)    == MATCH_LQ)      ||
+            ((insn_bits & MASK_LUI)   == MATCH_LUI)     ||
+            ((insn_bits & MASK_LW)    == MATCH_LW)      ||
+            ((insn_bits & MASK_LW_AQ) == MATCH_LW_AQ)   ||
+            ((insn_bits & MASK_LWU)   == MATCH_LWU);
+
+  uint64_t csr_addr = (insn_bits >> 20) & 0xfff;
+  bool     csr_read = (insn_bits & 0x7f) == 0x73;
+  bool csr_hasw = (csr_addr == CSR_MISA)       ||
+                  (csr_addr == CSR_MCOUNTEREN) ||
+                  (csr_addr == CSR_MCAUSE)     ||
+                  (csr_addr == CSR_MTVAL)      ||
+                  (csr_addr == CSR_MIMPID)     ||
+                  (csr_addr == CSR_MARCHID)    ||
+                  (csr_addr == CSR_MVENDORID)  ||
+                  (csr_addr == CSR_MCYCLE)     ||
+                  (csr_addr == CSR_MINSTRET)   ||
+                  (csr_addr == CSR_CYCLE)      ||
+                  (csr_addr == CSR_TIME)       ||
+                  (csr_addr == CSR_INSTRET)    ||
+                  (csr_addr == CSR_SATP)       ||
+                  (csr_addr >= CSR_TSELECT && csr_addr <= CSR_MCONTEXT) ||
+                  (csr_addr >= CSR_PMPADDR0 && csr_addr <= CSR_PMPADDR63);
+
+  bool override_ld_wb = (csr_read && csr_hasw) || ld || lr_read || sc_read;
+  if (override_ld_wb) {
+    state_t* s = this->get_state();
+    s->XPR.write(insn.rd(), wdata);
+  }
+}
+
 // Protobuf stuff
 BasicCSR* processor_lib_t::gen_basic_csr_proto(reg_t init) {
   BasicCSR* proto = create_protobuf<BasicCSR>(arena);

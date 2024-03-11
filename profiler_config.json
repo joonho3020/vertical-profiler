@@ -1,14 +1,15 @@
 {
-  "outdir":          "out",
+  "outdir":          "measure-perf",
   "spike_only_mode": false,
   "profiler_bin":    "src/builddir/profiler_main",
   "spike_log":       "SPIKE-LOGS",
   "libspikedevs":    "src/spike-devices/libspikedevices.so",
   "isa":             "rv64imafdczicsr_zifencei_zihpm_zicntr",
-  "kernel_dump":     "test-io/traces/boom-go-bm-markdown/KERNEL.riscv.dump",
-  "kernel_dwarf":    "test-io/traces/boom-go-bm-markdown/br-go-benchmarks-noperf-bin-dwarf",
-  "iceblk_img":      "test-io/traces/boom-go-bm-markdown/br-go-benchmarks-noperf.img",
-  "dtb":             "test-io/traces/boom-go-bm-markdown/boom.dtb",
-  "rtl_trace":       "test-io/traces/boom-go-bm-markdown/COSPIKE-TRACE.log",
-  "bin":             "test-io/traces/boom-go-bm-markdown/br-go-benchmarks-noperf0-br-go-benchmarks-noperf-bin"
+  "kernel_dump":     "test-io/traces/boom-go-bm-markdown-2/KERNEL.riscv.dump",
+  "kernel_dwarf":    "test-io/traces/boom-go-bm-markdown-2/br-go-benchmarks-noperf-bin-dwarf",
+  "iceblk_img":      "test-io/traces/boom-go-bm-markdown-2/br-go-benchmarks-noperf0-br-go-benchmarks-noperf.img",
+  "dtb":             "test-io/traces/boom-go-bm-markdown-2/boom.dtb",
+  "rtl_trace":       "test-io/traces/boom-go-bm-markdown-2/COSPIKE-TRACE.log",
+  "user_bins":       ["test-io/traces/boom-go-bm-markdown-2/markdown.riscv"],
+  "bin":             "test-io/traces/boom-go-bm-markdown-2/br-go-benchmarks-noperf-bin"
 }

@@ -31,6 +31,7 @@ public:
   reg_t get_mcycle();
   trace_t& step_trace() { return trace; }
   virtual void step(size_t n) override;
+  void step_from_trace(uint64_t insn_bits, reg_t pc, reg_t wdata);
 
 private:
   trace_t trace;
