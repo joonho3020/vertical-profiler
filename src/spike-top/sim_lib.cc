@@ -856,24 +856,7 @@ bool sim_lib_t::ganged_step(rtl_step_t step, int hartid) {
 #endif
           s->XPR.write(rd, wdata);
         } else if ((type == 0) && (wdata != regwrite.second.v[0])) {
-          printf("%" PRIu64 " Int wdata mismatch: spike 0x%" PRIx64 " fsim 0x%" PRIx64 "\n",
-              time, regwrite.second.v[0], wdata);
-
-          printf("TRACE time: %" PRIu64 " v: %d pc: 0x%" PRIx64 " insn: 0x%" PRIx64 " e: %d i: %d c: %d hw: %d wd: %" PRIu64 " prv: %d\n",
-              time, val, pc, insn, except, intrpt, cause, has_w, wdata, priv);
-
-          // If it is a load instruction and the writeback value doesn't match
-          if (mem_read_addr != 0) {
-            auto mmu = proc->get_mmu();
-            reg_t paddr = mmu->translate(
-                mmu->generate_access_info(
-                  mem_read_addr,
-                  LOAD,
-                  {false, false, false}),
-                mem_read_size);
-            printf("paddr: 0x%" PRIx64 "\n", paddr);
-          }
-          return false;
+          s->XPR.write(rd, wdata);
         } else if ((type == 1) && (wdata != regwrite.second.v[0])) {
           printf("%" PRIu64 " FP wdata mismatch: spike %" PRIu64 " fsim %" PRIu64 "\n",
               time, regwrite.second.v[0], wdata);
@@ -886,19 +869,18 @@ bool sim_lib_t::ganged_step(rtl_step_t step, int hartid) {
 }
 
 rtl_step_t sim_lib_t::parse_line_into_rtltrace(std::string line) {
-  std::vector<std::string> words;
-  split(words, line);
+  std::vector<std::string> words = fast_split(line, ' ', 10);
 
-  bool     val    = strtoul (words[1].c_str(), NULL, 10);
-  uint64_t time   = strtoull(words[0].c_str(), NULL, 10);
-  uint64_t pc     = strtoull(words[2].substr(2).c_str(), NULL, 16);
-  uint64_t insn   = strtoull(words[3].substr(2).c_str(), NULL, 16);
-  bool     except = strtoul (words[4].c_str(),  NULL, 10);
-  bool     intrpt = strtoul (words[5].c_str(), NULL, 10);
-  int      cause  = strtoul (words[6].c_str(), NULL, 10);
-  bool     has_w  = strtoul (words[7].c_str(), NULL, 10);
-  uint64_t wdata  = strtoull(words[8].substr(2).c_str(), NULL, 16);
-  int      priv   = strtoul (words[9].c_str(), NULL, 10);
+  bool     val    = strtobool_fast(words[1].c_str());
+  uint64_t time   = strtoull_fast_dec(words[0].c_str());
+  uint64_t pc     = strtoull_fast_hex(words[2].substr(2).c_str());
+  uint64_t insn   = strtoull_fast_hex(words[3].substr(2).c_str());
+  bool     except = strtobool_fast(words[4].c_str());
+  bool     intrpt = strtobool_fast(words[5].c_str());
+  int      cause  = strtoull_fast_dec(words[6].c_str());
+  bool     has_w  = strtobool_fast(words[7].c_str());
+  uint64_t wdata  = strtoull_fast_hex(words[8].substr(2).c_str());
+  int      priv   = strtoull_fast_dec(words[9].c_str());
 
   return rtl_step_t(val, time, pc, insn,
                      except, intrpt, cause, has_w, wdata, priv);

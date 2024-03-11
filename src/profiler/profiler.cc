@@ -312,7 +312,6 @@ int profiler_t::run_from_trace() {
   this->configure_log(true, true);
   this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
 
-  trace_t pctrace;
   while (std::getline(rtl_trace, line)) {
     uint64_t tohost_req = check_tohost_req();
     if (tohost_req)
@@ -338,23 +337,7 @@ int profiler_t::run_from_trace() {
       pstate_->pop_callstack(pstate_->get_curpid());
     }
 
-    if (step.val) {
-      // FIXME : In FireSim's kernel, the ASID allocator is disabled.
-      // That is, the kernel is configuring the HW to use 0 bits for ASID.
-      // This basically means that the TLB is flushed on every context switch
-      // rather than using ASIDs. Hence, we cannot use the ASID to binary
-      // mapping anymore in the RTL lockstep mode. Even for the functional
-      // simulation, I don't think that using ASID to binary mapping is
-      // a very good solution. Need to come up with a better datastructure
-      // for this.
-      pctrace.push_back({pc, get_asid(hartid), step.time});
-    }
-
-    if ((uint32_t)pctrace.size() > SPIKE_LOG_FLUSH_PERIOD) {
-      logger_->submit_packet_trace_to_threadpool();
-      logger_->submit_trace_to_threadpool(pctrace);
-      pctrace.clear();
-    }
+    logger_->submit_packet_trace_to_threadpool();
   }
   logger_->flush_packet_trace_to_threadpool();
   logger_->stop();
