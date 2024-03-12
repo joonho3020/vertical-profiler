@@ -5,6 +5,7 @@
 #include <vector>
 #include <map>
 #include <chrono>
+#include <queue>
 
 #include <riscv/cfg.h>
 #include <riscv/debug_module.h>
@@ -101,6 +102,38 @@ private:
   std::map<std::string, objdump_parser_t*> objdumps_;
 
   uint64_t SPIKE_LOG_FLUSH_PERIOD = 10000;
+};
+
+template <typename T>
+class sync_queue_t {
+  std::mutex mutex;
+  std::condition_variable cond_var;
+  std::queue<T> queue;
+
+public:
+  size_t size() {
+      std::lock_guard lock(mutex);
+      return queue.size();
+  }
+
+  void push(T&& item) {
+    {
+      std::lock_guard lock(mutex);
+      queue.push(item);
+    }
+    cond_var.notify_one();
+  }
+
+  T& front() {
+    std::unique_lock lock(mutex);
+    cond_var.wait(lock, [&]{ return !queue.empty(); });
+    return queue.front();
+  }
+
+  void pop() {
+    std::lock_guard lock(mutex);
+    queue.pop();
+  }
 };
 
 } // namespace profiler_t

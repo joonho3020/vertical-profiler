@@ -4,6 +4,7 @@
 #include <string>
 #include <sys/types.h>
 #include <vector>
+#include <tuple>
 #include <map>
 
 #include <riscv/cfg.h>
@@ -299,49 +300,95 @@ int profiler_t::run() {
   return rc;
 }
 
+void parser_thread_work(sync_queue_t<std::tuple<rtl_step_t, bool, bool>>& buf,
+                        std::string tracefile_string,
+                        std::vector<addr_t> spcs,
+                        std::vector<addr_t> epcs) {
+  std::string line;
+  std::ifstream rtl_trace = std::ifstream(tracefile_string, std::ios::binary);
+  while (std::getline(rtl_trace, line)) {
+    do {
+      ;
+    } while (buf.size() > 1000000);
+
+    rtl_step_t step = parse_line_into_rtltrace(line);
+    addr_t pc = step.pc;
+
+    bool opt_sa = false;
+    for (auto &x : spcs) {
+      if (unlikely(x == pc))
+        opt_sa = true;
+    }
+
+    bool opt_ea = false;
+    for (auto &x : epcs) {
+      if (unlikely(x == pc))
+        opt_ea = true;
+    }
+    buf.push({step, opt_sa, opt_ea});
+  }
+  buf.push({rtl_step_t(false, 0, 0, 0,
+        0, 0, 0, false, 0, 0, true), false, false});
+}
+
 int profiler_t::run_from_trace() {
   init();
 
   assert(rtl_tracefile_name);
   std::string line;
   std::string tracefile_string = std::string(rtl_tracefile_name);
-  std::ifstream rtl_trace = std::ifstream(tracefile_string, std::ios::binary);
 
   // TODO : multicore support
   int hartid = 0;
   this->configure_log(true, true);
   this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
-
   uint64_t cnt = 0;
-  while (std::getline(rtl_trace, line)) {
-    if ((cnt++ & 0xfff) == 0) {
+
+  sync_queue_t<std::tuple<rtl_step_t, bool, bool>> tracebuf;
+  std::thread parser_thread(parser_thread_work,
+                            std::ref(tracebuf),
+                            tracefile_string,
+                            this->pstate_->start_pcs_to_profile(),
+                            this->pstate_->exit_pcs_to_profile());
+
+  bool finished = false;
+  do {
+    do {
+      ;
+    } while (tracebuf.size() == 0);
+
+    auto entry = tracebuf.front();
+    tracebuf.pop();
+
+    rtl_step_t step = std::get<0>(entry);
+    finished = step.done;
+
+    if ((cnt++ & TOHOST_POLL_PERIOD) == 0) {
       uint64_t tohost_req = check_tohost_req();
       if (tohost_req)
         handle_tohost_req(tohost_req);
     }
 
-    rtl_step_t step = parse_line_into_rtltrace(line);
-    processor_lib_t* proc = get_core(hartid);
     bool success = ganged_step(step, hartid);
     if (!success) {
       passert("ganged simulation failed!\n");
     }
     pstate_->update_timestamp(step.time);
-
-    addr_t pc = this->get_pc(hartid);
-    optreg_t opt_sa = pstate_->found_registered_func_start_addr(pc);
-    if (opt_sa.has_value()) {
-      auto f = pstate_->get_profile_func(opt_sa.value());
-      opt_cs_entry_t entry = f->update_profiler(this);
-      if (entry.has_value()) {
-        pstate_->push_callstack(pstate_->get_curpid(), entry.value());
-      }
-    } else if (pstate_->found_registered_func_exit_addr(pc).has_value()) {
-      pstate_->pop_callstack(pstate_->get_curpid());
-    }
+/* addr_t pc = this->get_pc(hartid); */
+/* optreg_t opt_sa = pstate_->found_registered_func_start_addr(pc); */
+/* if (opt_sa.has_value()) { */
+/* auto f = pstate_->get_profile_func(opt_sa.value()); */
+/* opt_cs_entry_t entry = f->update_profiler(this); */
+/* if (entry.has_value()) { */
+/* pstate_->push_callstack(pstate_->get_curpid(), entry.value()); */
+/* } */
+/* } else if (pstate_->found_registered_func_exit_addr(pc).has_value()) { */
+/* pstate_->pop_callstack(pstate_->get_curpid()); */
+/* } */
     logger_->submit_packet_trace_to_threadpool();
-  }
+  } while (!finished);
 
+  parser_thread.join();
   logger_->flush_packet_trace_to_threadpool();
   logger_->stop();
   pstate_->dump_asid2bin_mapping(prof_outdir_);
