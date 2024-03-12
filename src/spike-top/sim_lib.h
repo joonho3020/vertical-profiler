@@ -23,7 +23,6 @@
 
 #include "ganged_devices.h"
 #include "processor_lib.h"
-#include "../lib/string_parser.h"
 
 
 /* #define DEBUG_MEM */
@@ -32,8 +31,6 @@
 
 typedef std::map<char*, char*> pagemap;
 typedef std::vector<char*>     pagepool;
-
-rtl_step_t parse_line_into_rtltrace(std::string line);
 
 class sim_lib_t : public sim_t {
 public:
@@ -96,6 +93,7 @@ public:
     return get_core(hartid)->get_asid();
   }
 
+  rtl_step_t parse_line_into_rtltrace(std::string line);
   bool ganged_step(rtl_step_t step, int hartid);
 
 private:
@@ -115,7 +113,6 @@ private:
   uint64_t processor_step_cnt = 0;
 
 protected:
-  const uint64_t TOHOST_POLL_PERIOD = 0xfff;
   uint64_t ROCKETCHIP_RESET_VECTOR  = 0x10000;
   size_t   ROCKETCHIP_BOOTROM_BASE  = 0x10000;
   size_t   ROCKETCHIP_BOOTROM_SIZE  = 0x10000;

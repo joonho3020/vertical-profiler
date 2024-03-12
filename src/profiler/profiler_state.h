@@ -44,9 +44,6 @@ public:
 
   void dump_asid2bin_mapping(std::string outdir);
 
-  std::vector<addr_t> start_pcs_to_profile() { return func_pc_prof_start_; }
-  std::vector<addr_t> exit_pcs_to_profile()  { return func_pc_prof_exit_;  }
-
 private:
   std::map<addr_t, function_t*> prof_pc_to_func_;
   std::vector<addr_t> func_pc_prof_start_;

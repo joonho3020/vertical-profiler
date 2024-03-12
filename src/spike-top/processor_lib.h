@@ -26,13 +26,12 @@ struct rtl_step_t {
   bool has_w;
   uint64_t wdata;
   int priv;
-  bool done;
 
   rtl_step_t(bool val, uint64_t time, uint64_t pc, uint64_t insn,
       bool except, bool intrpt, int cause, bool has_w, uint64_t wdata,
-      int priv, bool done)
+      int priv)
     : val(val), time(time), pc(pc), insn(insn), except(except),
-    intrpt(intrpt), cause(cause), has_w(has_w), wdata(wdata), priv(priv), done(done)
+    intrpt(intrpt), cause(cause), has_w(has_w), wdata(wdata), priv(priv)
   {
   }
 };
