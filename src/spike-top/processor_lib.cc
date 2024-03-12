@@ -216,91 +216,10 @@ void processor_lib_t::step(size_t n) {
   }
 }
 
-void processor_lib_t::step_from_trace(rtl_step_t step) {
-  uint64_t insn_bits = step.insn;
-  insn_t insn = insn_t(insn_bits);
-  uint64_t opcode = insn_bits & (0x7f);
-  reg_t pc = step.pc;
-
-  if ((opcode == 0b0110011 || /* R-type */
-       opcode == 0b0010011 || /* I-type (arith) */
-/* opcode == 0b0000011 || /1* I-type (loads) *1/ */
-/* opcode == 0b0100011 || /1* S-type *1/ */
-       opcode == 0b1101111 || /* jal    */
-       opcode == 0b1100111 || /* jalr   */
-       opcode == 0b0110111 || /* lui    */
-       opcode == 0b0010111 /* auipc */) && step.has_w) {
-    state_t* s = this->get_state();
-    s->XPR.write(insn.rd(), step.wdata);
-    s->pc = pc;
-  } else {
-    insn_func_t func = this->decode_insn(insn);
-    insn_fetch_t fetch = {func, insn_bits};
-    try {
-      execute_insn_fast(this, pc, fetch);
-    }
-    catch(trap_t& t) {
-      take_trap(t, pc);
-
-      // Trigger action takes priority over single step
-      auto match = TM.detect_trap_match(t);
-      if (match.has_value())
-        take_trigger_action(match->action, 0, state.pc, 0);
-      else if (unlikely(state.single_step == state.STEP_STEPPED)) {
-        state.single_step = state.STEP_NONE;
-        enter_debug_mode(DCSR_CAUSE_STEP);
-      }
-    }
-    catch (triggers::matched_t& t) {
-      if (mmu->matched_trigger) {
-        delete mmu->matched_trigger;
-        mmu->matched_trigger = NULL;
-      }
-      take_trigger_action(t.action, t.address, pc, t.gva);
-    }
-    catch(trap_debug_mode&) {
-      enter_debug_mode(DCSR_CAUSE_SWBP);
-    }
-    catch (wait_for_interrupt_t &t) {
-      // Return to the outer simulation loop, which gives other devices/harts a
-      // chance to generate interrupts.
-      //
-      // In the debug ROM this prevents us from wasting time looping, but also
-      // allows us to switch to other threads only once per idle loop in case
-      // there is activity.
-      in_wfi = true;
-    }
-
-    bool lr_read = ((insn_bits & MASK_LR_D) == MATCH_LR_D) ||
-      ((insn_bits & MASK_LR_W) == MATCH_LR_W);
-
-    bool sc_read = ((insn_bits & MASK_SC_D) == MATCH_SC_D) ||
-      ((insn_bits & MASK_SC_W) == MATCH_SC_W);
-
-    uint64_t csr_addr = (insn_bits >> 20) & 0xfff;
-    bool     csr_read = (insn_bits & 0x7f) == 0x73;
-    bool csr_hasw = (csr_addr == CSR_MISA)       ||
-      (csr_addr == CSR_MCOUNTEREN) ||
-      (csr_addr == CSR_MCAUSE)     ||
-      (csr_addr == CSR_MTVAL)      ||
-      (csr_addr == CSR_MIMPID)     ||
-      (csr_addr == CSR_MARCHID)    ||
-      (csr_addr == CSR_MVENDORID)  ||
-      (csr_addr == CSR_MCYCLE)     ||
-      (csr_addr == CSR_MINSTRET)   ||
-      (csr_addr == CSR_CYCLE)      ||
-      (csr_addr == CSR_TIME)       ||
-      (csr_addr == CSR_INSTRET)    ||
-      (csr_addr == CSR_SATP)       ||
-      (csr_addr >= CSR_TSELECT && csr_addr <= CSR_MCONTEXT) ||
-      (csr_addr >= CSR_PMPADDR0 && csr_addr <= CSR_PMPADDR63);
-
-    bool override_ld_wb = (csr_read && csr_hasw) || lr_read || sc_read;
-    if (override_ld_wb) {
-      state_t* s = this->get_state();
-      s->XPR.write(insn.rd(), step.wdata);
-    }
-  }
+void processor_lib_t::step_from_trace(int rd, uint64_t wdata, reg_t npc) {
+  state_t* s = this->get_state();
+  s->XPR.write(rd, wdata);
+  s->pc = npc;
 }
 
 // Protobuf stuff
