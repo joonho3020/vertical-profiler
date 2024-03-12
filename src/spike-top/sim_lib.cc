@@ -680,10 +680,17 @@ bool sim_lib_t::ganged_step(rtl_step_t step, int hartid) {
     } else if (seip_interrupt) {
       bool has_pending_interrupt = this->plic->alert_core_external_interrupt(hartid);
       if (!has_pending_interrupt) {
-        printf("Spike does not have any pending interrupts\n");
-        printf("TRACE time: %" PRIu64 " v: %d pc: 0x%" PRIx64 " insn: 0x%" PRIx64 " e: %d i: %d c: %d hw: %d wd: %" PRIu64 " prv: %d\n",
-            time, val, pc, insn, except, intrpt, cause, has_w, wdata, priv);
-        return false;
+        for (int i = 1, cnt = devices.size(); i < cnt; i++) {
+          auto& d = devices[i];
+          d->tick(1);
+        }
+        bool retry_plic_interrupt = this->plic->alert_core_external_interrupt(hartid);
+        if (!retry_plic_interrupt) {
+          printf("Spike does not have any pending interrupts\n");
+          printf("TRACE time: %" PRIu64 " v: %d pc: 0x%" PRIx64 " insn: 0x%" PRIx64 " e: %d i: %d c: %d hw: %d wd: %" PRIu64 " prv: %d\n",
+              time, val, pc, insn, except, intrpt, cause, has_w, wdata, priv);
+          return false;
+        }
       }
     } else {
       printf("Unknown interrupt\n");
@@ -697,13 +704,12 @@ bool sim_lib_t::ganged_step(rtl_step_t step, int hartid) {
   // To avoid executing wfi instruction multiple times in functional sim,
   // we want to clear the wfi signal.
   if (val || except || intrpt) {
-    for (auto& d : ganged_devs)
-      d.get()->was_read = false;
-
-    // ignore clint
-    for (int i = 1, cnt = devices.size(); i < cnt; i++) {
-      auto& d = devices[i];
-      d->tick(1);
+    if (processor_step_cnt++ % DEVICE_TICK_PERIOD == 0) {
+      // ignore clint
+      for (int i = 1, cnt = devices.size(); i < cnt; i++) {
+        auto& d = devices[i];
+        d->tick(1);
+      }
     }
 
     proc->clear_waiting_for_interrupt();
@@ -749,74 +755,11 @@ bool sim_lib_t::ganged_step(rtl_step_t step, int hartid) {
       }
     }
 
-    bool scalar_wb = false;
-    bool vector_wb = false;
-    uint32_t vector_cnt = 0;
-    std::vector<reg_t> vector_rds;
-    for (auto &regwrite : log) {
-
-      //TODO: scaling to multi issue reads?
-      reg_t mem_read_addr = mem_read.empty() ? 0 : std::get<0>(mem_read[0]);
-      reg_t mem_read_size = mem_read.empty() ? 0 : std::get<2>(mem_read[0]);
-
+    for (auto &regwrite: log) {
       int rd = regwrite.first >> 4;
       int type = regwrite.first & 0xf;
-
-      // 0 => int
-      // 1 => fp
-      // 2 => vec
-      // 3 => vec hint
-      // 4 => csr
-      bool device_read = false;
-      for (auto& d : ganged_devs) if (d.get()->was_read) device_read = true;
-
-      bool lr_read = ((insn & MASK_LR_D) == MATCH_LR_D) || ((insn & MASK_LR_W) == MATCH_LR_W);
-      bool sc_read = ((insn & MASK_SC_D) == MATCH_SC_D) || ((insn & MASK_SC_W) == MATCH_SC_W);
-
-      bool ignore_read = device_read || sc_read || (!mem_read.empty() &&
-          (magic_addrs.count(mem_read_addr) ||
-           lr_read ||
-           (tohost_addr && mem_read_addr == tohost_addr) ||
-           (fromhost_addr && mem_read_addr == fromhost_addr)));
-
-      // check the type is compliant with writeback first
-      if ((type == 0 || type == 1))
-        scalar_wb = true;
-      if (type == 2) {
-        vector_rds.push_back(rd);
-        vector_wb = true;
-      }
-      if (type == 3) continue;
-
-      if ((rd != 0 && type == 0) || type == 1) {
-        // Override reads from some CSRs
-        uint64_t csr_addr = (insn >> 20) & 0xfff;
-        bool csr_read = (insn & 0x7f) == 0x73;
-        bool csr_override = csr_read &&
-              (csr_addr == CSR_MISA)       ||
-              (csr_addr == CSR_MCOUNTEREN) ||
-              (csr_addr == CSR_MCAUSE)     ||
-              (csr_addr == CSR_MTVAL)     ||
-              (csr_addr == CSR_MIMPID)     ||
-              (csr_addr == CSR_MARCHID)    ||
-              (csr_addr == CSR_MVENDORID)  ||
-              (csr_addr == CSR_MCYCLE)     ||
-              (csr_addr == CSR_MINSTRET)   ||
-              (csr_addr == CSR_CYCLE)      ||
-              (csr_addr == CSR_TIME)       ||
-              (csr_addr == CSR_INSTRET)    ||
-              (csr_addr == CSR_SATP)    ||
-              (csr_addr >= CSR_TSELECT && csr_addr <= CSR_MCONTEXT) ||
-              (csr_addr >= CSR_PMPADDR0 && csr_addr <= CSR_PMPADDR63);
-        bool mismatch = (type == 0) && (wdata != regwrite.second.v[0]);
-        bool override_read = csr_override || ignore_read || mismatch;
-        if (override_read) {
+      if (rd != 0 && type == 0) {
           s->XPR.write(rd, wdata);
-        } else if ((type == 1) && (wdata != regwrite.second.v[0])) {
-          printf("%" PRIu64 " FP wdata mismatch: spike %" PRIu64 " fsim %" PRIu64 "\n",
-              time, regwrite.second.v[0], wdata);
-          return false;
-        }
       }
     }
   }

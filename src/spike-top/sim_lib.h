@@ -109,6 +109,8 @@ private:
   std::function<void(reg_t)> fromhost_callback;
 
   std::vector<std::shared_ptr<ganged_device_t>> ganged_devs;
+  const uint64_t DEVICE_TICK_PERIOD = 1000;
+  uint64_t processor_step_cnt = 0;
 
 protected:
   uint64_t ROCKETCHIP_RESET_VECTOR  = 0x10000;

@@ -52,7 +52,7 @@ public:
   reg_t get_mcycle();
   trace_t& step_trace() { return trace; }
   virtual void step(size_t n) override;
-  void step_from_trace(rtl_step_t step);
+  void step_from_trace(int rd, uint64_t wdata, reg_t npc);
 
 private:
   trace_t trace;
