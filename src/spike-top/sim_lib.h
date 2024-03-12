@@ -94,7 +94,7 @@ public:
   }
 
   rtl_step_t parse_line_into_rtltrace(std::string line);
-  bool ganged_step(rtl_step_t step, reg_t npc, int hartid);
+  bool ganged_step(rtl_step_t step, int hartid);
 
 private:
   friend class processor_t;

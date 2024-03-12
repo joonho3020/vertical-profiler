@@ -216,77 +216,10 @@ void processor_lib_t::step(size_t n) {
   }
 }
 
-void processor_lib_t::step_from_trace(int rd, uint64_t wdata, bool has_w, reg_t npc) {
-  size_t instret = 0;
-  reg_t pc = state.pc;
-  mmu_t* _mmu = mmu;
-  state.prv_changed = false;
-  state.v_changed = false;
-
-  try {
-    take_pending_interrupt();
-
-    // Main simulation loop, slow path.
-    if (!state.serialized && check_triggers_icount) {
-      auto match = TM.detect_icount_match();
-      if (match.has_value()) {
-        assert(match->timing == triggers::TIMING_BEFORE);
-        throw triggers::matched_t((triggers::operation_t)0, 0, match->action, state.v);
-      }
-    }
-
-    // debug mode wfis must nop
-    if (unlikely(in_wfi && !state.debug_mode)) {
-      throw wait_for_interrupt_t();
-    }
-
-    in_wfi = false;
-    if (has_w)
-      state.XPR.write(rd, wdata);
-    state.pc = npc;
-  }
-  catch(trap_t& t)
-  {
-    take_trap(t, pc);
-
-    // Trigger action takes priority over single step
-    auto match = TM.detect_trap_match(t);
-    if (match.has_value())
-      take_trigger_action(match->action, 0, state.pc, 0);
-    else if (unlikely(state.single_step == state.STEP_STEPPED)) {
-      state.single_step = state.STEP_NONE;
-      enter_debug_mode(DCSR_CAUSE_STEP);
-    }
-  }
-  catch (triggers::matched_t& t)
-  {
-    if (mmu->matched_trigger) {
-      delete mmu->matched_trigger;
-      mmu->matched_trigger = NULL;
-    }
-    take_trigger_action(t.action, t.address, pc, t.gva);
-  }
-  catch(trap_debug_mode&)
-  {
-    enter_debug_mode(DCSR_CAUSE_SWBP);
-  }
-  catch (wait_for_interrupt_t &t)
-  {
-    // Return to the outer simulation loop, which gives other devices/harts a
-    // chance to generate interrupts.
-    //
-    // In the debug ROM this prevents us from wasting time looping, but also
-    // allows us to switch to other threads only once per idle loop in case
-    // there is activity.
-    in_wfi = true;
-  }
-  state.minstret->bump(1);
-  state.mcycle->bump(1);
-}
-
-void processor_lib_t::reset_commit_log() {
-  commit_log_reset(this);
-  commit_log_stash_privilege(this);
+void processor_lib_t::step_from_trace(int rd, uint64_t wdata, reg_t npc) {
+  state_t* s = this->get_state();
+  s->XPR.write(rd, wdata);
+  s->pc = npc;
 }
 
 // Protobuf stuff
