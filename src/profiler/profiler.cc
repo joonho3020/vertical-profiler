@@ -313,20 +313,28 @@ int profiler_t::run_from_trace() {
   this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
 
   uint64_t cnt = 0;
+  bool first = true;
+  rtl_step_t cur_step;
   while (std::getline(rtl_trace, line)) {
+    rtl_step_t nxt_step = parse_line_into_rtltrace(line);
+    if (first) {
+      cur_step = nxt_step;
+      first = false;
+      continue;
+    }
+
     if ((cnt++ & 0xfff) == 0) {
       uint64_t tohost_req = check_tohost_req();
       if (tohost_req)
         handle_tohost_req(tohost_req);
     }
 
-    rtl_step_t step = parse_line_into_rtltrace(line);
-    processor_lib_t* proc = get_core(hartid);
-    bool success = ganged_step(step, hartid);
+    bool success = ganged_step(cur_step, nxt_step.pc, hartid);
     if (!success) {
-      passert("ganged simulation failed!\n");
+      passert("ganged simulation failed!, %" PRIu64 " insns done\n", cnt);
     }
-    pstate_->update_timestamp(step.time);
+    pstate_->update_timestamp(cur_step.time);
+    cur_step = nxt_step;
 
     addr_t pc = this->get_pc(hartid);
     optreg_t opt_sa = pstate_->found_registered_func_start_addr(pc);

@@ -27,6 +27,8 @@ struct rtl_step_t {
   uint64_t wdata;
   int priv;
 
+  rtl_step_t() {}
+
   rtl_step_t(bool val, uint64_t time, uint64_t pc, uint64_t insn,
       bool except, bool intrpt, int cause, bool has_w, uint64_t wdata,
       int priv)
@@ -52,7 +54,8 @@ public:
   reg_t get_mcycle();
   trace_t& step_trace() { return trace; }
   virtual void step(size_t n) override;
-  void step_from_trace(int rd, uint64_t wdata, reg_t npc);
+  void step_from_trace(int rd, uint64_t wdata, bool has_w, reg_t npc);
+  void reset_commit_log();
 
 private:
   trace_t trace;
