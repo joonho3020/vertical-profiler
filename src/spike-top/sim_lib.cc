@@ -804,12 +804,16 @@ int sim_lib_t::run_from_trace() {
   int hartid = 0;
   this->configure_log(true, true);
   this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
+
   rtl_step_t step;
+  uint64_t cnt = 0;
 
   while (std::getline(rtl_trace, line)) {
-    uint64_t tohost_req = check_tohost_req();
-    if (tohost_req)
-      handle_tohost_req(tohost_req);
+    if ((cnt++ & TOHOST_CHECK_PERIOD) == 0) {
+      uint64_t tohost_req = check_tohost_req();
+      if (tohost_req)
+        handle_tohost_req(tohost_req);
+    }
 
     parse_line_into_rtltrace(line.c_str(), step);
     bool success = ganged_step(step, hartid);

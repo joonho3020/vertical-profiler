@@ -113,6 +113,7 @@ private:
   uint64_t processor_step_cnt = 0;
 
 protected:
+  uint64_t TOHOST_CHECK_PERIOD = 0xfff;
   uint64_t ROCKETCHIP_RESET_VECTOR  = 0x10000;
   size_t   ROCKETCHIP_BOOTROM_BASE  = 0x10000;
   size_t   ROCKETCHIP_BOOTROM_SIZE  = 0x10000;

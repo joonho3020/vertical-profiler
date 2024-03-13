@@ -315,7 +315,7 @@ int profiler_t::run_from_trace() {
   rtl_step_t step;
   uint64_t cnt = 0;
   while (std::getline(rtl_trace, line)) {
-    if ((cnt++ & 0xfff) == 0) {
+    if ((cnt++ & TOHOST_CHECK_PERIOD) == 0) {
       uint64_t tohost_req = check_tohost_req();
       if (tohost_req)
         handle_tohost_req(tohost_req);
