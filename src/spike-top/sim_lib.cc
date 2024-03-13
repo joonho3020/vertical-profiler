@@ -766,22 +766,32 @@ bool sim_lib_t::ganged_step(rtl_step_t step, int hartid) {
   return true;
 }
 
-rtl_step_t sim_lib_t::parse_line_into_rtltrace(std::string line) {
-  std::vector<std::string> words = fast_split(line, ' ', 10);
+void sim_lib_t::parse_line_into_rtltrace(const char* line, rtl_step_t& step) {
+  step.val    = line[0] == '1' ? true : false;
+  step.except = line[2] == '1' ? true : false;
+  step.intrpt = line[4] == '1' ? true : false;
+  step.has_w  = line[6] == '1' ? true : false;
+  step.cause = 0;
+  step.time = 0;
+  step.pc = 0;
+  step.wdata = 0;
 
-  bool     val    = strtobool_fast(words[1].c_str());
-  uint64_t time   = strtoull_fast_dec(words[0].c_str());
-  uint64_t pc     = strtoull_fast_hex(words[2].substr(2).c_str());
-  uint64_t insn   = strtoull_fast_hex(words[3].substr(2).c_str());
-  bool     except = strtobool_fast(words[4].c_str());
-  bool     intrpt = strtobool_fast(words[5].c_str());
-  int      cause  = strtoull_fast_dec(words[6].c_str());
-  bool     has_w  = strtobool_fast(words[7].c_str());
-  uint64_t wdata  = strtoull_fast_hex(words[8].substr(2).c_str());
-  int      priv   = strtoull_fast_dec(words[9].c_str());
+  const char* cur;
+  for (cur = &line[8]; *cur != ' '; cur++) {
+    step.cause = (step.cause * 10) + (*cur - '0');
+  }
 
-  return rtl_step_t(val, time, pc, insn,
-                     except, intrpt, cause, has_w, wdata, priv);
+  for (cur++; *cur != ' '; cur++) {
+    step.time = (step.time * 10) + (*cur - '0');
+  }
+
+  for (cur++; *cur != ' '; cur++) {
+    step.pc = ((uint64_t)step.pc << 4UL) + (uint64_t)((*cur >= 97) ? (*cur - 87) : *cur - '0');
+  }
+
+  for (cur++; *cur != '\0'; cur++) {
+    step.wdata = ((uint64_t)step.wdata << 4UL) + (uint64_t)((*cur >= 97) ? (*cur - 87) : *cur - '0');
+  }
 }
 
 int sim_lib_t::run_from_trace() {
@@ -794,13 +804,14 @@ int sim_lib_t::run_from_trace() {
   int hartid = 0;
   this->configure_log(true, true);
   this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
+  rtl_step_t step;
 
   while (std::getline(rtl_trace, line)) {
     uint64_t tohost_req = check_tohost_req();
     if (tohost_req)
       handle_tohost_req(tohost_req);
 
-    rtl_step_t step = parse_line_into_rtltrace(line);
+    parse_line_into_rtltrace(line.c_str(), step);
     bool success = ganged_step(step, hartid);
     if (!success) {
       printf("ganged simulation failed\n");

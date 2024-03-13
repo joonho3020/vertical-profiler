@@ -27,6 +27,8 @@ struct rtl_step_t {
   uint64_t wdata;
   int priv;
 
+  rtl_step_t() {};
+
   rtl_step_t(bool val, uint64_t time, uint64_t pc, uint64_t insn,
       bool except, bool intrpt, int cause, bool has_w, uint64_t wdata,
       int priv)

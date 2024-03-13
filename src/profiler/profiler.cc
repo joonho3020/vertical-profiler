@@ -312,6 +312,7 @@ int profiler_t::run_from_trace() {
   this->configure_log(true, true);
   this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
 
+  rtl_step_t step;
   uint64_t cnt = 0;
   while (std::getline(rtl_trace, line)) {
     if ((cnt++ & 0xfff) == 0) {
@@ -320,7 +321,7 @@ int profiler_t::run_from_trace() {
         handle_tohost_req(tohost_req);
     }
 
-    rtl_step_t step = parse_line_into_rtltrace(line);
+    parse_line_into_rtltrace(line.c_str(), step);
     processor_lib_t* proc = get_core(hartid);
     bool success = ganged_step(step, hartid);
     if (!success) {

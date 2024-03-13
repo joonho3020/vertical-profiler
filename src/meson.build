@@ -65,6 +65,12 @@ perfetto_trace_lib = library('perfetto_trace_lib',
     'profiler/perfetto_trace.cc'
   ])
 
+executable('reformat_cospike_trace',
+  [
+    'lib/reformat_cospike_trace.cc'
+  ],
+  link_with : [string_parser_lib])
+
 executable('spike_lib_main',
   [
     'spike-top/spike_lib.cc'

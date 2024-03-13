@@ -93,7 +93,7 @@ public:
     return get_core(hartid)->get_asid();
   }
 
-  rtl_step_t parse_line_into_rtltrace(std::string line);
+  void parse_line_into_rtltrace(const char* line, rtl_step_t& step);
   bool ganged_step(rtl_step_t step, int hartid);
 
 private:
