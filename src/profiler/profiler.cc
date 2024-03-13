@@ -303,9 +303,13 @@ int profiler_t::run_from_trace() {
   init();
 
   assert(rtl_tracefile_name);
-  std::string line;
-  std::string tracefile_string = std::string(rtl_tracefile_name);
-  std::ifstream rtl_trace = std::ifstream(tracefile_string, std::ios::binary);
+
+  char line[RTL_TRACE_LINE_MAX_CHARS];
+  FILE* rtl_trace = fopen(rtl_tracefile_name, "r");
+  if (!rtl_trace) {
+    printf("Failed to open %s\n", rtl_tracefile_name);
+    exit(1);
+  }
 
   // TODO : multicore support
   int hartid = 0;
@@ -314,14 +318,14 @@ int profiler_t::run_from_trace() {
 
   rtl_step_t step;
   uint64_t cnt = 0;
-  while (std::getline(rtl_trace, line)) {
+  while (fgets(line, RTL_TRACE_LINE_MAX_CHARS, rtl_trace)) {
     if ((cnt++ & TOHOST_CHECK_PERIOD) == 0) {
       uint64_t tohost_req = check_tohost_req();
       if (tohost_req)
         handle_tohost_req(tohost_req);
     }
 
-    parse_line_into_rtltrace(line.c_str(), step);
+    parse_line_into_rtltrace(line, step);
     processor_lib_t* proc = get_core(hartid);
     bool success = ganged_step(step, hartid);
     if (!success) {

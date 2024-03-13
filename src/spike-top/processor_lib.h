@@ -1,6 +1,7 @@
 #ifndef _PROCESSOR_LIB_H_
 #define _PROCESSOR_LIB_H_
 
+#include <inttypes.h>
 #include <riscv/processor.h>
 #include <google/protobuf/arena.h>
 #include "arch-state.pb.h"
@@ -35,6 +36,11 @@ struct rtl_step_t {
     : val(val), time(time), pc(pc), insn(insn), except(except),
     intrpt(intrpt), cause(cause), has_w(has_w), wdata(wdata), priv(priv)
   {
+  }
+
+  void print() {
+    printf("%d %" PRIu64 " 0x%" PRIx64 " %d %d %d %d 0x%" PRIx64 "\n",
+        val, time, pc, except, intrpt, cause, has_w, wdata);
   }
 };
 
