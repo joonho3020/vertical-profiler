@@ -93,7 +93,7 @@ public:
     return get_core(hartid)->get_asid();
   }
 
-  rtl_step_t parse_line_into_rtltrace(std::string line);
+  void parse_line_into_rtltrace(const char* line, rtl_step_t& step);
   bool ganged_step(rtl_step_t step, int hartid);
 
 private:
@@ -113,6 +113,8 @@ private:
   uint64_t processor_step_cnt = 0;
 
 protected:
+  const int RTL_TRACE_LINE_MAX_CHARS = 128;
+  uint64_t TOHOST_CHECK_PERIOD = 0xfff;
   uint64_t ROCKETCHIP_RESET_VECTOR  = 0x10000;
   size_t   ROCKETCHIP_BOOTROM_BASE  = 0x10000;
   size_t   ROCKETCHIP_BOOTROM_SIZE  = 0x10000;

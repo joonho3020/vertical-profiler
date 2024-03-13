@@ -99,8 +99,6 @@ private:
 
   std::string prof_outdir_;
   std::map<std::string, objdump_parser_t*> objdumps_;
-
-  uint64_t SPIKE_LOG_FLUSH_PERIOD = 10000;
 };
 
 } // namespace profiler_t
