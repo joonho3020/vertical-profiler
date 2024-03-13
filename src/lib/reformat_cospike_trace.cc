@@ -33,8 +33,6 @@ int main(int argc, char** argv) {
     int      cause  = strtoull_fast_dec(words[6].c_str());
     bool     has_w  = strtobool_fast(words[7].c_str());
     uint64_t wdata  = strtoull_fast_hex(words[8].substr(2).c_str());
-/* uint64_t insn   = strtoull_fast_hex(words[3].substr(2).c_str()); */
-/* int      priv   = strtoull_fast_dec(words[9].c_str()); */
 
     fprintf(out, "%d %d %d %d %d %lu %lx %lx\n",
                   val, except, intrpt, has_w, cause, time, pc, wdata);
