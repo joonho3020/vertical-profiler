@@ -2,7 +2,7 @@ obj
 prof/main
 test-io/traces
 *.riscv
-test-io/test-binaries/linux-workloads
+test-io/linux-poweroff/linux-workloads
 prof/test
 *.log
 *.out
