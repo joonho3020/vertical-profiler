@@ -4,7 +4,6 @@ export PATH="$PATH:$ONE_PROF_BASE/src/fireperf"
 export PATH="$PATH:$ONE_PROF_BASE/src/fireperf/FlameGraph"
 export PATH="$PATH:$ONE_PROF_BASE/scripts"
 
-conda activate $ONE_PROF_BASE/chipyard/.conda-env
 export PROTOBUF_INSTALL_DIR=$ONE_PROF_BASE/src/protobuf/install
 export PATH="$PROTOBUF_INSTALL_DIR/bin:$PATH"
 

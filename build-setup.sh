@@ -5,6 +5,7 @@ git submodule update
 
 cd chipyard
 ./build-setup.sh --force
+source env.sh
 cd ..
 
 source env.sh
