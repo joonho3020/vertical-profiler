@@ -41,8 +41,8 @@ sim_lib_t::sim_lib_t(const cfg_t *cfg, bool halted,
         FILE *cmd_file,
         const char* rtl_tracefile_name,
         bool serialize_mem)
-  : sim_t(cfg, halted, mems, plugin_device_factories, args, dm_config,
-          log_path, dtb_enabled, dtb_file, socket_enabled, true, cmd_file),
+  : sim_t(cfg, halted, std::vector<std::pair<reg_t, abstract_mem_t*>>(), plugin_device_factories, args, dm_config,
+          log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file),
     rtl_tracefile_name(rtl_tracefile_name),
     serialize_mem(serialize_mem)
 {
