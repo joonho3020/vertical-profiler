@@ -5,7 +5,9 @@ git submodule update
 
 cd chipyard
 ./build-setup.sh --force
-source env.sh
+source .conda-env/etc/profile.d/conda.sh
+conda activate $(pwd)/.conda-env
+echo $RISCV
 cd ..
 
 source env.sh
