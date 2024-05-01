@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <string_view>
+#include <inttypes.h>
 
 
 void split_by_idx(std::vector<std::string>& words, std::string& line, std::vector<int>& indices);
