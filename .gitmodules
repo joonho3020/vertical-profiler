@@ -16,3 +16,6 @@
 [submodule "src/go-execution-trace-parser"]
 	path = src/go-execution-trace-parser
 	url = git@github.com:joonho3020/go-execution-trace-parser.git
+[submodule "test-io/go-benchmark-fork"]
+	path = test-io/go-benchmark-fork
+	url = git@github.com:joonho3020/go-benchmark-fork.git
