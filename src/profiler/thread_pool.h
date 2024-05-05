@@ -29,9 +29,9 @@ typedef std::function<void(T, S)> job_t;
 public:
 
   void start(uint32_t max_concurrency) {
-    const uint32_t num_threads = std::min(
-        std::thread::hardware_concurrency()/16,
-        max_concurrency);
+    const uint32_t num_threads = std::max(
+        std::thread::hardware_concurrency() / 16,
+        std::min(std::thread::hardware_concurrency(), max_concurrency));
     for (uint32_t ii = 0; ii < num_threads; ++ii) {
       threads.emplace_back(std::thread(&threadpool_t::threadloop, this));
     }

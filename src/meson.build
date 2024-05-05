@@ -15,7 +15,7 @@ protobuf_install_path=root_dir + '/protobuf/install'
 protobuf_hdr_path = 'protobuf/install/include'
 protobuf_lib_path = protobuf_install_path + '/lib/libprotobuf.a'
 
-lib_deps = declare_dependency(link_args: ['-L' + conda_path, '-l:libdwarf.so', '-l:libelf.so', '-lpthread'])
+lib_deps = declare_dependency(link_args: ['-L' + conda_path, '-l:libdwarf.so', '-l:libelf.so', '-lpthread', '-lz'])
 spike_lib_deps = declare_dependency(link_args:['-ldl', '-L' + riscv_lib_path, '-Wl,-rpath,' + riscv_lib_path, '-lriscv', '-lfesvr', '-ldisasm', '-lfdt'])
 protobuf_lib_deps = declare_dependency(link_args: [protobuf_lib_path])
 
@@ -91,7 +91,8 @@ executable('profiler_main',
     'profiler/logger.cc',
     'profiler/callstack_info.cc',
     'profiler/stack_unwinder.cc',
-    'profiler/perfetto_trace.cc'
+    'profiler/perfetto_trace.cc',
+    'profiler/trace_reader.cc'
   ],
   link_with : [
     tracerv_lib,
@@ -142,3 +143,16 @@ test('perfetto_trace test', perfetto_trace_test)
 assert_test = executable('test_assert',
   'test/test_assert.cc')
 test('test_assert test', assert_test)
+
+trace_reader_test = executable('test_trace_reader',
+  [
+    'test/test_trace_reader.cc',
+    'profiler/trace_reader.cc'
+  ],
+  link_with : [spike_top_lib],
+  dependencies : [lib_deps, spike_lib_deps, protobuf_lib_deps],
+  include_directories : [
+    spike_hdr_incs,
+    protobuf_hdr_incs
+  ])
+test('test_trace_reader test', trace_reader_test)
