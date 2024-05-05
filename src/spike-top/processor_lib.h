@@ -39,8 +39,8 @@ struct rtl_step_t {
   }
 
   void print() {
-    printf("%d %" PRIu64 " 0x%" PRIx64 " %d %d %d %d 0x%" PRIx64 "\n",
-        val, time, pc, except, intrpt, cause, has_w, wdata);
+    printf("- %" PRIu64 " %" PRIx64 " %d %d %d %d %d %" PRIx64 "\n",
+        time, pc, val, except, intrpt, has_w, cause, wdata);
   }
 };
 

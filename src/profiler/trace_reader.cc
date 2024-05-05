@@ -11,7 +11,7 @@ trace_buffer_t::trace_buffer_t(size_t max_entries, size_t max_file_bytes) {
   this->buffer = (uint8_t*)malloc(sizeof(uint8_t) * max_file_bytes);
   this->max_entries = max_entries + 1;
   this->head = 0;
-  this->tail = 0;
+  this->tail = 1;
   this->consumable = false;
 }
 
@@ -20,7 +20,7 @@ trace_buffer_t::~trace_buffer_t() {
 }
 
 bool trace_buffer_t::empty() {
-  return (head == tail);
+  return ((head + 1) % max_entries == tail);
 }
 
 bool trace_buffer_t::full() {
@@ -67,7 +67,7 @@ void trace_buffer_t::generate_trace(int bytes_read) {
   int digits[] = {0, 10, 16, 10, 10, 10, 10, 10, 16};
   uint64_t trace_members[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-  do {
+  while (i < bytes_read) {
     int index = 0;
     rtl_step_t& step = this->push_back();
     char cur_char = (char)buffer[i];
@@ -93,7 +93,7 @@ void trace_buffer_t::generate_trace(int bytes_read) {
     step.has_w   = trace_members[6];
     step.cause   = trace_members[7];
     step.wdata   = trace_members[8];
-  } while (i < bytes_read);
+  }
   {
     std::unique_lock<std::mutex> lock(consumable_mutex);
     consumable = true;
@@ -131,7 +131,7 @@ trace_buffer_t* trace_reader_t::cur_buffer() {
 void trace_reader_t::pop_buffer() {
   {
     std::unique_lock<std::mutex> lock(buffer_mutex);
-    printf("consume done id: %d\n", consumer_id);
+/* printf("consume done id: %d\n", consumer_id); */
     consumer_id = (consumer_id + 1) % buffers.size();
   }
 }
@@ -162,7 +162,7 @@ void trace_reader_t::threadloop() {
       if (has_file) {
         trace_buffer_t* cbuf = buffers[consumer_id];
         if ((producer_id != consumer_id || init)) {
-          printf("start decompressing trace: %d producer id: %d\n", trace_id, producer_id);
+/* printf("start decompressing trace: %d producer id: %d\n", trace_id, producer_id); */
           this->init = false;
           trace_id++;
           pid = producer_id;
