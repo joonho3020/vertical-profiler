@@ -1,18 +1,28 @@
 
 
+#include <chrono>
+#include <iostream>
 #include "../profiler/trace_reader.h"
 
 using namespace profiler;
+using namespace std::chrono;
 
 int main(int argc, char** argv) {
-  std::string tracedir = "/scratch/joonho.whangbo/coding/FIRESIM_RUNS_DIR/boom-linux-multithread/sim_slot_0/COSPIKE-TRACES";
-/* std::string tracedir = std::string(argv[1]); */
+  if (argc < 3) {
+    printf("usage: ./test_trace_reader <path to tracedir> <num files>\n");
+    exit(1);
+  }
+
+  std::string tracedir = std::string(argv[1]);
+  int num_files = atoi(argv[2]);
+
   trace_reader_t* reader = new trace_reader_t(
-      0, 48, 200 * 1000, 5 * 1024 * 1024, tracedir);
+      0, 12, 200 * 1000, 5 * 1024 * 1024, tracedir);
   reader->start();
 
+  auto start = high_resolution_clock::now();
   uint64_t cur_step = 0;
-  for (int i = 0; i < 425818; i++) {
+  for (int i = 0; i < num_files; i++) {
     trace_buffer_t* buf = reader->cur_buffer();
     while (!buf->can_consume()) {
       ;
@@ -29,7 +39,8 @@ int main(int argc, char** argv) {
     buf->done_consume();
     reader->pop_buffer();
   }
-  printf("Test passed\n");
-
+  auto end = high_resolution_clock::now();
+  auto duration = duration_cast<seconds>(end - start);
+  std::cout << "Test passed: " << duration.count() << " seconds\n";
   return 0;
 }
