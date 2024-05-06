@@ -4,7 +4,9 @@ project('profiler', 'cpp',
     ]
 )
 
-add_global_arguments('-O3', language : 'cpp')
+add_global_arguments([
+  '-O3',
+], language : 'cpp')
 
 root_dir = meson.source_root()
 conda_path=root_dir + '/../chipyard/.conda-env'
@@ -22,13 +24,16 @@ protobuf_lib_deps = declare_dependency(link_args: [protobuf_lib_path])
 spike_hdr_incs = include_directories(riscv_hdr_path)
 protobuf_hdr_incs = include_directories(protobuf_hdr_path)
 
-string_parser_lib = library('string_parser_lib',
-  'lib/string_parser.cc',
+trace_format_lib = library('trace_format_lib',
+  [
+    'lib/string_parser.cc',
+    'lib/trace_reader.cc'
+  ],
   dependencies : [lib_deps])
 
 objdump_parser_lib = library('objdump_parser_lib',
   'profiler/objdump_parser.cc',
-  link_with : string_parser_lib,
+  link_with : trace_format_lib,
   dependencies : [lib_deps])
 
 tracerv_lib = library('tracerv_lib',
@@ -50,7 +55,7 @@ spike_top_lib = library('spike_top_lib',
     'spike-top/arch-state.pb.cc'
   ],
   link_with : [
-    string_parser_lib
+    trace_format_lib
   ],
   dependencies : [
     lib_deps, spike_lib_deps, protobuf_lib_deps
@@ -69,7 +74,7 @@ executable('reformat_cospike_trace',
   [
     'lib/reformat_cospike_trace.cc'
   ],
-  link_with : [string_parser_lib])
+  link_with : [trace_format_lib])
 
 executable('spike_lib_main',
   [
@@ -91,12 +96,11 @@ executable('profiler_main',
     'profiler/logger.cc',
     'profiler/callstack_info.cc',
     'profiler/stack_unwinder.cc',
-    'profiler/perfetto_trace.cc',
-    'profiler/trace_reader.cc'
+    'profiler/perfetto_trace.cc'
   ],
   link_with : [
     tracerv_lib,
-    string_parser_lib,
+    trace_format_lib,
     objdump_parser_lib,
     spike_top_lib
   ],
@@ -114,21 +118,21 @@ executable('stack_unwinder_main',
     'profiler/stack_unwinder.cc'
   ],
   link_with : [
-    string_parser_lib,
+    trace_format_lib,
     tracerv_lib
   ],
   dependencies : [lib_deps])
 
 string_parser_test = executable('test_string_parser',
   'test/test_string_parser.cc',
-  link_with : string_parser_lib)
+  link_with : trace_format_lib)
 
 test('string_parser test', string_parser_test)
 
 objdump_parser_test = executable('test_objdump_parser',
   'test/test_objdump_parser.cc',
   link_with : [
-    string_parser_lib,
+    trace_format_lib,
     objdump_parser_lib
   ])
 test('objdump_parser test', objdump_parser_test)
@@ -140,16 +144,11 @@ perfetto_trace_test = executable('test_perfetto_trace',
   ])
 test('perfetto_trace test', perfetto_trace_test)
 
-assert_test = executable('test_assert',
-  'test/test_assert.cc')
-test('test_assert test', assert_test)
-
 trace_reader_test = executable('test_trace_reader',
   [
-    'test/test_trace_reader.cc',
-    'profiler/trace_reader.cc'
+    'test/test_trace_reader.cc'
   ],
-  link_with : [spike_top_lib],
+  link_with : [spike_top_lib, trace_format_lib],
   dependencies : [lib_deps, spike_lib_deps, protobuf_lib_deps],
   include_directories : [
     spike_hdr_incs,

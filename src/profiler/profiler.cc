@@ -48,11 +48,11 @@ profiler_t::profiler_t(
       const char *dtb_file,
       bool socket_enabled,
       FILE *cmd_file,
-      const char* rtl_tracefile_name,
+      const char* rtl_trace_dir,
       std::string prof_outdir)
   : sim_lib_t(cfg, halted, mems, plugin_device_factories, args, dm_config,
           log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file,
-          rtl_tracefile_name,
+          rtl_trace_dir,
           false /* don't serialize_mem */),
   prof_outdir_(prof_outdir)
 {
@@ -302,49 +302,46 @@ int profiler_t::run() {
 int profiler_t::run_from_trace() {
   init();
 
-  assert(rtl_tracefile_name);
-
-  char line[RTL_TRACE_LINE_MAX_CHARS];
-  FILE* rtl_trace = fopen(rtl_tracefile_name, "r");
-  if (!rtl_trace) {
-    printf("Failed to open %s\n", rtl_tracefile_name);
-    exit(1);
-  }
+  assert(rtl_trace_dir);
 
   // TODO : multicore support
   int hartid = 0;
   this->configure_log(true, true);
   this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
 
-  rtl_step_t step;
   uint64_t cnt = 0;
-  while (fgets(line, RTL_TRACE_LINE_MAX_CHARS, rtl_trace)) {
-    if ((cnt++ & TOHOST_CHECK_PERIOD) == 0) {
-      uint64_t tohost_req = check_tohost_req();
-      if (tohost_req)
-        handle_tohost_req(tohost_req);
+  while (true) {
+    trace_buffer_t* buf = trace_reader->cur_buffer();
+    while (!buf->can_consume()) {
+      ;
     }
-
-    parse_line_into_rtltrace(line, step);
-    processor_lib_t* proc = get_core(hartid);
-    bool success = ganged_step(step, hartid);
-    if (!success) {
-      passert("ganged simulation failed!\n");
-    }
-    pstate_->update_timestamp(step.time);
-
-    addr_t pc = this->get_pc(hartid);
-    optreg_t opt_sa = pstate_->found_registered_func_start_addr(pc);
-    if (opt_sa.has_value()) {
-      auto f = pstate_->get_profile_func(opt_sa.value());
-      opt_cs_entry_t entry = f->update_profiler(this);
-      if (entry.has_value()) {
-        pstate_->push_callstack(pstate_->get_curpid(), entry.value());
+    while (!buf->empty()) {
+      if ((cnt++ & TOHOST_CHECK_PERIOD) == 0) {
+        uint64_t tohost_req = check_tohost_req();
+        if (tohost_req)
+          handle_tohost_req(tohost_req);
       }
-    } else if (pstate_->found_registered_func_exit_addr(pc).has_value()) {
-      pstate_->pop_callstack(pstate_->get_curpid());
+      rtl_step_t& step = buf->pop_front();
+      processor_lib_t* proc = get_core(hartid);
+      bool success = ganged_step(step, hartid);
+      if (!success) {
+        passert("ganged simulation failed!\n");
+      }
+      pstate_->update_timestamp(step.time);
+
+      addr_t pc = this->get_pc(hartid);
+      optreg_t opt_sa = pstate_->found_registered_func_start_addr(pc);
+      if (opt_sa.has_value()) {
+        auto f = pstate_->get_profile_func(opt_sa.value());
+        opt_cs_entry_t entry = f->update_profiler(this);
+        if (entry.has_value()) {
+          pstate_->push_callstack(pstate_->get_curpid(), entry.value());
+        }
+      } else if (pstate_->found_registered_func_exit_addr(pc).has_value()) {
+        pstate_->pop_callstack(pstate_->get_curpid());
+      }
+      logger_->submit_packet_trace_to_threadpool();
     }
-    logger_->submit_packet_trace_to_threadpool();
   }
 
   logger_->flush_packet_trace_to_threadpool();

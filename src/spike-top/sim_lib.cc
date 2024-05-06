@@ -39,11 +39,11 @@ sim_lib_t::sim_lib_t(const cfg_t *cfg, bool halted,
         bool dtb_enabled, const char *dtb_file,
         bool socket_enabled,
         FILE *cmd_file,
-        const char* rtl_tracefile_name,
+        const char* rtl_trace_dir,
         bool serialize_mem)
   : sim_t(cfg, halted, std::vector<std::pair<reg_t, abstract_mem_t*>>(), plugin_device_factories, args, dm_config,
           log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file),
-    rtl_tracefile_name(rtl_tracefile_name),
+    rtl_trace_dir(rtl_trace_dir),
     serialize_mem(serialize_mem)
 {
   arena = new google::protobuf::Arena();
@@ -94,7 +94,19 @@ sim_lib_t::sim_lib_t(const cfg_t *cfg, bool halted,
   // When running without using a dtb, skip the fdt-based configuration steps
   if (!dtb_enabled) return;
 
-  bool from_rtl_trace = (rtl_tracefile_name != nullptr);
+  bool from_rtl_trace = (rtl_trace_dir != nullptr);
+
+  if (from_rtl_trace) {
+    // TODO : multicore support?
+    std::string rtl_trace_dir_str = rtl_trace_dir;
+    printf("rtl_trace_dir_str: %s rtl_trace_dir: %s\n", rtl_trace_dir_str.c_str(), rtl_trace_dir);
+    this->trace_reader = new trace_reader_t(0,
+        12,
+        200 * 1000,
+        8 * 1024 * 1024,
+        rtl_trace_dir_str);
+    this->trace_reader->start();
+  }
 
   // Only make a CLINT (Core-Local INTerrupt controller) and PLIC (Platform-
   // Level-Interrupt-Controller) if they are specified in the device tree
@@ -725,6 +737,7 @@ bool sim_lib_t::ganged_step(rtl_step_t step, int hartid) {
       printf("spike mtinst is %lx\n", s->mtinst->read());
       printf("spike mepc is %lx\n", s->mepc->read());
       printf("spike mtvec is %lx\n", s->mtvec->read());
+      printf("spike satp is %lx\n", s->satp->read());
       for (int i = 0; i < NXPR; i++) {
         printf("r %2d = 0x%" PRIx64 "\n", i, s->XPR[i]);
       }
@@ -795,36 +808,38 @@ void sim_lib_t::parse_line_into_rtltrace(const char* line, rtl_step_t& step) {
 }
 
 int sim_lib_t::run_from_trace() {
-  assert(rtl_tracefile_name);
-
-  char line[RTL_TRACE_LINE_MAX_CHARS];
-  FILE* rtl_trace = fopen(rtl_tracefile_name, "r");
-  if (!rtl_trace) {
-    printf("Failed to open %s\n", rtl_tracefile_name);
-    exit(1);
-  }
+  assert(rtl_trace_dir);
 
   // TODO : multicore support
   int hartid = 0;
   this->configure_log(true, true);
   this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
 
-  rtl_step_t step;
+  uint64_t bufid = 0;
   uint64_t cnt = 0;
-
-  while (fgets(line, RTL_TRACE_LINE_MAX_CHARS, rtl_trace)) {
-    if ((cnt++ & TOHOST_CHECK_PERIOD) == 0) {
-      uint64_t tohost_req = check_tohost_req();
-      if (tohost_req)
-        handle_tohost_req(tohost_req);
+  while (true) {
+    trace_buffer_t* buf = trace_reader->cur_buffer();
+    while (!buf->can_consume()) {
+      ;
     }
+    while (!buf->empty()) {
+      if ((cnt++ & TOHOST_CHECK_PERIOD) == 0) {
+        uint64_t tohost_req = check_tohost_req();
+        if (tohost_req)
+          handle_tohost_req(tohost_req);
+      }
 
-    parse_line_into_rtltrace(line, step);
-    bool success = ganged_step(step, hartid);
-    if (!success) {
-      printf("ganged simulation failed\n");
-      assert(false);
+      rtl_step_t& step = buf->pop_front();
+      bool success = ganged_step(step, hartid);
+      if (!success) {
+        printf("ganged simulation failed COSPIKE-%d-%" PRIu64 ".gz\n", hartid, bufid);
+        step.print();
+        assert(false);
+      }
     }
+    buf->done_consume();
+    trace_reader->pop_buffer();
+    bufid++;
   }
   return 0;
 }

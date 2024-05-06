@@ -23,6 +23,8 @@
 
 #include "ganged_devices.h"
 #include "processor_lib.h"
+#include "../lib/trace.h"
+#include "../lib/trace_reader.h"
 
 
 /* #define DEBUG_MEM */
@@ -42,7 +44,7 @@ public:
         bool dtb_enabled, const char *dtb_file,
         bool socket_enabled,
         FILE *cmd_file, /* needed for command line option --cmd */
-        const char* rtl_tracefile_name,
+        const char* rtl_trace_dir,
         bool serialize_mem);
 
   ~sim_lib_t();
@@ -82,7 +84,7 @@ public:
   pagemap mm_ckpt; // host addr -> ckpt addr
 
   // RTL lockstep stuff
-  const char* rtl_tracefile_name;
+  const char* rtl_trace_dir;
 
   trace_t& run_trace() { return target_trace; }
   void clear_run_trace() { target_trace.clear(); }
@@ -113,7 +115,8 @@ private:
   uint64_t processor_step_cnt = 0;
 
 protected:
-  const int RTL_TRACE_LINE_MAX_CHARS = 128;
+  trace_reader_t* trace_reader = nullptr;
+
   uint64_t TOHOST_CHECK_PERIOD = 0xfff;
   uint64_t ROCKETCHIP_RESET_VECTOR  = 0x10000;
   size_t   ROCKETCHIP_BOOTROM_BASE  = 0x10000;
@@ -122,6 +125,8 @@ protected:
   uint64_t ROCKETCHIP_BOOTADDR      = 0x80000000LL;
   uint64_t ROCKETCHIP_MEM0_BASE     = 0x80000000LL;
   uint64_t ROCKETCHIP_MEM0_SIZE     = 0x400000000LL;
+
+  // TODO : Provide is as input args
   std::vector<char> firesim_bootrom = {
     23, 5, 0, 0, 19, 5, 5, 4, 115, 16, 85, 48, -13, 34, 16, 48, -109, -46, 34, 65, -109, -14, 18, 0, 99, -124, 2, 0, 115, 16, 48, 48,
       19, 5, -128, 0, 115, 16, 69, 48, 115, 32, 5, 48, 115, 0, 80, 16, 111, -16, -33, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

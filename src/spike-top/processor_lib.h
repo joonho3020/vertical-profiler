@@ -5,46 +5,11 @@
 #include <riscv/processor.h>
 #include <google/protobuf/arena.h>
 #include "arch-state.pb.h"
+#include "../lib/trace.h"
 
 #define PC_SERIALIZE_BEFORE 3
 #define PC_SERIALIZE_AFTER 5
 #define invalid_pc(pc) ((pc) & 1)
-
-struct trace_entry_t {
-  reg_t pc;
-  reg_t asid;
-  reg_t cycle;
-};
-
-struct rtl_step_t {
-  bool val;
-  uint64_t time;
-  uint64_t pc;
-  uint64_t insn;
-  bool except;
-  bool intrpt;
-  int cause;
-  bool has_w;
-  uint64_t wdata;
-  int priv;
-
-  rtl_step_t() {};
-
-  rtl_step_t(bool val, uint64_t time, uint64_t pc, uint64_t insn,
-      bool except, bool intrpt, int cause, bool has_w, uint64_t wdata,
-      int priv)
-    : val(val), time(time), pc(pc), insn(insn), except(except),
-    intrpt(intrpt), cause(cause), has_w(has_w), wdata(wdata), priv(priv)
-  {
-  }
-
-  void print() {
-    printf("- %" PRIu64 " %" PRIx64 " %d %d %d %d %d %" PRIx64 "\n",
-        time, pc, val, except, intrpt, has_w, cause, wdata);
-  }
-};
-
-typedef std::vector<trace_entry_t> trace_t;
 
 class wait_for_interrupt_t {};
 

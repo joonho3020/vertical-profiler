@@ -1,14 +1,13 @@
 #ifndef __TRACE_READER_H__
 #define __TRACE_READER_H__
 
-#include "../spike-top/processor_lib.h"
+#include "trace.h"
 #include <vector>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <string>
 #include <inttypes.h>
-
-namespace profiler {
 
 class trace_buffer_t {
 public:
@@ -25,6 +24,7 @@ public:
   void generate_trace(int bytes_read);
 
 private:
+  size_t max_file_bytes;
   size_t max_entries;
   size_t head;
   size_t tail;
@@ -59,14 +59,5 @@ private:
   std::mutex buffer_mutex;
   std::vector<std::thread> threads;
 };
-
-} // namespace profiler
-
-
-// while (trace_reader->empty()) {
-//    ;
-// }
-// rtl_step_t& step = trace_reader->get_next_step();
-// // profiler consumes step
 
 #endif // __TRACE_READER_H__

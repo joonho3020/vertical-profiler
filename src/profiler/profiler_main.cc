@@ -23,7 +23,7 @@
 
 static void help(int exit_code = 1)
 {
-  fprintf(stderr, "Spike RISC-V ISA Simulator\n\n");
+  fprintf(stderr, "Profiler\n\n");
   fprintf(stderr, "usage: spike [host options] <target program> [target options]\n");
   fprintf(stderr, "Host Options:\n");
   fprintf(stderr, "  -p<n>                 Simulate <n> processors [default 1]\n");
@@ -86,7 +86,7 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --kernel-info=<name>  <objdump,dwarf> of kernel\n");
   fprintf(stderr, "  --user-info=<name>    <objdump,dwarf>+<objdump,dwarf>... of space programs\n");
   fprintf(stderr, "  --prof-out=<name>     Directory to output profiling data\n");
-  fprintf(stderr, "  --rtl-trace=<name>    Read trace from file\n");
+  fprintf(stderr, "  --rtl-trace=<name>    Directory containing compressed RTL traces\n");
 
   exit(exit_code);
 }
@@ -499,9 +499,9 @@ int main(int argc, char** argv)
       dwarf_paths.push_back({dirs.back(), info[0]});
     }
   });
-  const char* trace_file = NULL;
+  const char* trace_dir = NULL;
   parser.option(0, "rtl-trace", 1, [&](const char* s){
-      trace_file = s;
+      trace_dir = s;
   });
   auto argv1 = parser.parse(argv);
   std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
@@ -509,7 +509,7 @@ int main(int argc, char** argv)
   if (!*argv1)
     help();
 
-  bool rtl_lockstep = (trace_file != NULL);
+  bool rtl_lockstep = (trace_dir != NULL);
   if (rtl_lockstep) {
     cfg.mem_layout.clear();
     cfg.mem_layout.push_back(
@@ -566,14 +566,16 @@ int main(int argc, char** argv)
     }
     cfg.hartids = default_hartids;
   }
+
+  // In RocketChip, time is measured by raising an exception as it doesn't have
+  // appropriate CSRs in the RTL implementation.
   cfg.handle_time_by_xcpt = rtl_lockstep;
 
-
   std::string prof_outdir_cpp = std::string(prof_outdir);
-
-  profiler::profiler_t p(objdump_paths, dwarf_paths, &cfg, halted, mems, plugin_device_factories, htif_args, dm_config,
+  profiler::profiler_t p(objdump_paths, dwarf_paths, &cfg, halted, mems,
+      plugin_device_factories, htif_args, dm_config,
       log_path, dtb_enabled, dtb_file, socket, cmd_file,
-      trace_file, prof_outdir_cpp);
+      trace_dir, prof_outdir_cpp);
 
   if (dump_dts) {
     printf("%s", p.get_dts());

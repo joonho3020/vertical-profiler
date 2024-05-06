@@ -2,9 +2,9 @@
 
 #include <chrono>
 #include <iostream>
-#include "../profiler/trace_reader.h"
+#include <assert.h>
+#include "../lib/trace_reader.h"
 
-using namespace profiler;
 using namespace std::chrono;
 
 int main(int argc, char** argv) {

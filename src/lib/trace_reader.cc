@@ -1,14 +1,14 @@
+
 #include "trace_reader.h"
 #include <sys/stat.h>
-#include <string>
 #include <zlib.h>
 #include <filesystem>
-
-namespace profiler {
+#include <assert.h>
 
 trace_buffer_t::trace_buffer_t(size_t max_entries, size_t max_file_bytes) {
   for (size_t i = 0; i < max_entries + 1; i++) this->trace.push_back(new rtl_step_t());
   this->buffer = (uint8_t*)malloc(sizeof(uint8_t) * max_file_bytes);
+  this->max_file_bytes = max_file_bytes;
   this->max_entries = max_entries + 1;
   this->head = 0;
   this->tail = 1;
@@ -77,6 +77,10 @@ void trace_buffer_t::generate_trace(int bytes_read) {
 /* printf("cur_char: %c\n", cur_char); */
         int v = cur_char >= 97 ? cur_char - 87 : cur_char - '0';
         x = (x * digits[index]) + v;
+        if (i + 1 >= max_file_bytes) {
+          printf("i (%d) + 1 > %lu bytes_read: %d\n", i, max_file_bytes, bytes_read);
+          assert(false);
+        }
         cur_char = (char)buffer[++i];
       }
 /* printf("inner loop done index: %d x: %d\n", index, x); */
@@ -159,6 +163,7 @@ void trace_reader_t::threadloop() {
 /* bool has_file = (stat (path.c_str(), &sbuf) == 0); */
       const std::filesystem::path path{trace_dir + "/" + file};
       bool has_file = std::filesystem::exists(path);
+/* printf("trace_dir: %s file: %s has_file: %d\n", trace_dir.c_str(), file.c_str(), has_file); */
       if (has_file) {
         trace_buffer_t* cbuf = buffers[consumer_id];
         if ((producer_id != consumer_id || init)) {
@@ -179,5 +184,3 @@ void trace_reader_t::threadloop() {
     }
   }
 }
-
-} // namespace profiler

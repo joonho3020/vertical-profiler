@@ -14,16 +14,30 @@ cd $SPIKE_BUILDDIR
 # --rtl-trace=$PROF_TOP_DIR/test-io/traces/COSPIKE-TRACE-FSIM-BOOM-ZERO-DRAM.log \
 # $PROF_TOP_DIR/test-io/traces/linux-poweroff0-linux-poweroff-bin
 
-TRACE_DIR=$PROF_TOP_DIR/test-io/traces/boom-go-bm-markdown
-DISK_IMG=br-go-benchmarks-noperf0-br-go-benchmarks-noperf.img
-FSIM_TRACE=COSPIKE-TRACE.log
-WORKLOAD=br-go-benchmarks-noperf0-br-go-benchmarks-noperf-bin
-./spike_lib_main \
+# TRACE_DIR=$PROF_TOP_DIR/test-io/traces/boom-markdown
+# DISK_IMG=markdown0-markdown.img
+# FSIM_TRACE_DIR=/scratch/joonho.whangbo/coding/FIRESIM_RUNS_DIR/boom-linux-multithread-sv39/sim_slot_0/COSPIKE-TRACES
+# WORKLOAD=markdown0-markdown-bin
+# gdb --args ./spike_lib_main \
+#   --dtb=$TRACE_DIR/boom-sv39.dtb \
+#   --isa=rv64imafdczicsr_zifencei_zihpm_zicntr \
+#   --log=OUT \
+#   --extlib=$PROF_TOP_DIR/src/spike-devices/libspikedevices.so \
+#   --device="sifive_uart" \
+#   --device="iceblk,img=$TRACE_DIR/$DISK_IMG" \
+#   --rtl-trace=$FSIM_TRACE_DIR \
+#   $TRACE_DIR/$WORKLOAD
+
+TRACE_DIR=$PROF_TOP_DIR/test-io/traces/boom-markdown
+DISK_IMG=markdown0-markdown.img
+FSIM_TRACE_DIR=/scratch/joonho.whangbo/coding/FIRESIM_RUNS_DIR/boom-linux-multithread-sv48/sim_slot_0/COSPIKE-TRACES
+WORKLOAD=markdown0-markdown-bin
+gdb --args ./spike_lib_main \
   --dtb=$TRACE_DIR/boom.dtb \
   --isa=rv64imafdczicsr_zifencei_zihpm_zicntr \
   --log=OUT \
   --extlib=$PROF_TOP_DIR/src/spike-devices/libspikedevices.so \
   --device="sifive_uart" \
   --device="iceblk,img=$TRACE_DIR/$DISK_IMG" \
-  --rtl-trace=$TRACE_DIR/$FSIM_TRACE \
+  --rtl-trace=$FSIM_TRACE_DIR \
   $TRACE_DIR/$WORKLOAD
