@@ -48,12 +48,12 @@ profiler_t::profiler_t(
       const char *dtb_file,
       bool socket_enabled,
       FILE *cmd_file,
-      const char* rtl_trace_dir,
-      std::string prof_outdir)
+      std::string prof_outdir,
+      const char* rtl_cfg)
   : sim_lib_t(cfg, halted, mems, plugin_device_factories, args, dm_config,
           log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file,
-          rtl_trace_dir,
-          false /* don't serialize_mem */),
+          false /* don't serialize_mem */,
+          rtl_cfg),
   prof_outdir_(prof_outdir)
 {
   for (auto p: objdump_paths) {
@@ -302,15 +302,13 @@ int profiler_t::run() {
 int profiler_t::run_from_trace() {
   init();
 
-  assert(rtl_trace_dir);
-
   // TODO : multicore support
   int hartid = 0;
   this->configure_log(true, true);
   this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
 
   uint64_t cnt = 0;
-  while (true) {
+  while (target_running()) {
     trace_buffer_t* buf = trace_reader->cur_buffer();
     while (!buf->can_consume()) {
       ;

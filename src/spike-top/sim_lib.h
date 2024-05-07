@@ -34,6 +34,13 @@
 typedef std::map<char*, char*> pagemap;
 typedef std::vector<char*>     pagepool;
 
+struct rtl_trace_cfg_t {
+  const char* rtl_trace_dir;
+  int nthreads;
+  size_t max_file_bytes;
+  size_t traces_per_file;
+};
+
 class sim_lib_t : public sim_t {
 public:
   sim_lib_t(const cfg_t *cfg, bool halted,
@@ -44,8 +51,8 @@ public:
         bool dtb_enabled, const char *dtb_file,
         bool socket_enabled,
         FILE *cmd_file, /* needed for command line option --cmd */
-        const char* rtl_trace_dir,
-        bool serialize_mem);
+        bool serialize_mem,
+        const char* rtl_cfg);
 
   ~sim_lib_t();
 
@@ -82,9 +89,6 @@ public:
   std::set<reg_t> ckpt_ppn;
   pagepool ckpt_mempool;
   pagemap mm_ckpt; // host addr -> ckpt addr
-
-  // RTL lockstep stuff
-  const char* rtl_trace_dir;
 
   trace_t& run_trace() { return target_trace; }
   void clear_run_trace() { target_trace.clear(); }

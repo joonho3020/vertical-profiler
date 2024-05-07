@@ -86,7 +86,7 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --kernel-info=<name>  <objdump,dwarf> of kernel\n");
   fprintf(stderr, "  --user-info=<name>    <objdump,dwarf>+<objdump,dwarf>... of space programs\n");
   fprintf(stderr, "  --prof-out=<name>     Directory to output profiling data\n");
-  fprintf(stderr, "  --rtl-trace=<name>    Directory containing compressed RTL traces\n");
+  fprintf(stderr, "  --rtl-cfg=<dir:nthreads:traces_per_file:max_file_bytes> (Trace directory):(nthreads to decompress):(max insns per file):(max uncompressed file bytes)\n");
 
   exit(exit_code);
 }
@@ -499,9 +499,9 @@ int main(int argc, char** argv)
       dwarf_paths.push_back({dirs.back(), info[0]});
     }
   });
-  const char* trace_dir = NULL;
-  parser.option(0, "rtl-trace", 1, [&](const char* s){
-      trace_dir = s;
+  const char* rtl_cfg_char = NULL;
+  parser.option(0, "rtl-cfg", 1, [&](const char* s){
+      rtl_cfg_char = s;
   });
   auto argv1 = parser.parse(argv);
   std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
@@ -509,7 +509,7 @@ int main(int argc, char** argv)
   if (!*argv1)
     help();
 
-  bool rtl_lockstep = (trace_dir != NULL);
+  bool rtl_lockstep = (rtl_cfg_char != NULL);
   if (rtl_lockstep) {
     cfg.mem_layout.clear();
     cfg.mem_layout.push_back(
@@ -575,7 +575,7 @@ int main(int argc, char** argv)
   profiler::profiler_t p(objdump_paths, dwarf_paths, &cfg, halted, mems,
       plugin_device_factories, htif_args, dm_config,
       log_path, dtb_enabled, dtb_file, socket, cmd_file,
-      trace_dir, prof_outdir_cpp);
+      prof_outdir_cpp, rtl_cfg_char);
 
   if (dump_dts) {
     printf("%s", p.get_dts());

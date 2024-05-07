@@ -39,11 +39,10 @@ sim_lib_t::sim_lib_t(const cfg_t *cfg, bool halted,
         bool dtb_enabled, const char *dtb_file,
         bool socket_enabled,
         FILE *cmd_file,
-        const char* rtl_trace_dir,
-        bool serialize_mem)
+        bool serialize_mem,
+        const char* rtl_cfg)
   : sim_t(cfg, halted, std::vector<std::pair<reg_t, abstract_mem_t*>>(), plugin_device_factories, args, dm_config,
           log_path, dtb_enabled, dtb_file, socket_enabled, cmd_file),
-    rtl_trace_dir(rtl_trace_dir),
     serialize_mem(serialize_mem)
 {
   arena = new google::protobuf::Arena();
@@ -94,16 +93,21 @@ sim_lib_t::sim_lib_t(const cfg_t *cfg, bool halted,
   // When running without using a dtb, skip the fdt-based configuration steps
   if (!dtb_enabled) return;
 
-  bool from_rtl_trace = (rtl_trace_dir != nullptr);
-
+  bool from_rtl_trace = (rtl_cfg != NULL);
   if (from_rtl_trace) {
     // TODO : multicore support?
-    std::string rtl_trace_dir_str = rtl_trace_dir;
-    printf("rtl_trace_dir_str: %s rtl_trace_dir: %s\n", rtl_trace_dir_str.c_str(), rtl_trace_dir);
+    std::string rtl_cfg_str(rtl_cfg);
+    std::vector<std::string> words;
+    split(words, rtl_cfg_str, ':');
+
+    const char* rtl_trace_dir = words[0].c_str();
+    std::string rtl_trace_dir_str(rtl_trace_dir);
+    printf("rtl_trace_dir_str: %s\n", rtl_trace_dir_str.c_str());
+
     this->trace_reader = new trace_reader_t(0,
-        12,
-        200 * 1000,
-        8 * 1024 * 1024,
+        atoi(words[1].c_str()),
+        (size_t)atoi(words[2].c_str()),
+        (size_t)atoi(words[3].c_str()),
         rtl_trace_dir_str);
     this->trace_reader->start();
   }
@@ -808,8 +812,6 @@ void sim_lib_t::parse_line_into_rtltrace(const char* line, rtl_step_t& step) {
 }
 
 int sim_lib_t::run_from_trace() {
-  assert(rtl_trace_dir);
-
   // TODO : multicore support
   int hartid = 0;
   this->configure_log(true, true);
@@ -817,7 +819,7 @@ int sim_lib_t::run_from_trace() {
 
   uint64_t bufid = 0;
   uint64_t cnt = 0;
-  while (true) {
+  while (target_running()) {
     trace_buffer_t* buf = trace_reader->cur_buffer();
     while (!buf->can_consume()) {
       ;

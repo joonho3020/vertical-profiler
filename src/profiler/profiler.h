@@ -67,8 +67,8 @@ public:
       const char *dtb_file,
       bool socket_enabled,
       FILE *cmd_file,
-      const char* rtl_tracefile_name,
-      std::string prof_outdir);
+      std::string prof_outdir,
+      const char* rtl_cfg);
 
   ~profiler_t();
 

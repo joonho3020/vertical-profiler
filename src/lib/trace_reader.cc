@@ -83,7 +83,6 @@ void trace_buffer_t::generate_trace(int bytes_read) {
         }
         cur_char = (char)buffer[++i];
       }
-/* printf("inner loop done index: %d x: %d\n", index, x); */
       trace_members[index++] = x;
       if (cur_char == ' ')
         cur_char = (char)buffer[++i];
@@ -158,9 +157,6 @@ void trace_reader_t::threadloop() {
       file = "COSPIKE-TRACE-" +
              std::to_string(hartid) + "-" +
              std::to_string(trace_id) + ".gz";
-/* std::string path = trace_dir + "/" + file; */
-/* struct stat sbuf; */
-/* bool has_file = (stat (path.c_str(), &sbuf) == 0); */
       const std::filesystem::path path{trace_dir + "/" + file};
       bool has_file = std::filesystem::exists(path);
 /* printf("trace_dir: %s file: %s has_file: %d\n", trace_dir.c_str(), file.c_str(), has_file); */
