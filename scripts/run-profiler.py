@@ -41,8 +41,14 @@ def profiler_run_cmd(config: Dict) -> str:
     sifive_uart = f"--device=sifive_uart"
     dtb         = f"--dtb={config['dtb']}"
     isa         = f"--isa={config['isa']}"
-    rtl_trace   = f"--rtl-trace={config['rtl_trace']}"
-    rtl_cmd_list = [sifive_uart, dtb, isa, rtl_trace]
+
+    trace_dir   = config['rtl_trace_dir']
+    reader_threads = config['reader_threads']
+    insn_per_file = config['insn_per_file']
+    max_file_bytes = config['max_file_bytes']
+    rtl_cfg  = f"--rtl-cfg=\"{trace_dir}:{reader_threads}:{insn_per_file}:{max_file_bytes}\""
+
+    rtl_cmd_list = [sifive_uart, dtb, isa, rtl_cfg]
     cmdlist = base_cmd_list + rtl_cmd_list + [workload]
   cmd = ' '.join(cmdlist)
   return cmd

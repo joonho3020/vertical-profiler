@@ -340,6 +340,8 @@ int profiler_t::run_from_trace() {
       }
       logger_->submit_packet_trace_to_threadpool();
     }
+    buf->done_consume();
+    trace_reader->pop_buffer();
   }
 
   logger_->flush_packet_trace_to_threadpool();

@@ -24,7 +24,7 @@
 static void help(int exit_code = 1)
 {
   fprintf(stderr, "Profiler\n\n");
-  fprintf(stderr, "usage: spike [host options] <target program> [target options]\n");
+  fprintf(stderr, "usage: profiler_main [host options] <target program> [target options]\n");
   fprintf(stderr, "Host Options:\n");
   fprintf(stderr, "  -p<n>                 Simulate <n> processors [default 1]\n");
   fprintf(stderr, "  -m<n>                 Provide <n> MiB of target memory [default 2048]\n");
