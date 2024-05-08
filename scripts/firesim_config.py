@@ -280,3 +280,22 @@ class ProfilerConfig(FireSimRuntimeConfig):
     self.prof_out.mkdir(parents=True, exist_ok=True)
     os.chdir(self.base_dir)
     subprocess.run('./run.sh', shell=True)
+
+  def display(self):
+    event_logs = self.prof_out.joinpath('PROF-EVENT-LOGS')
+    perfetto_dir = PROFILER_BASEDIR.joinpath('src', 'perfetto')
+    os.chdir(perfetto_dir)
+    cwd = os.getcwd()
+    print(cwd)
+
+    event_logs_rel = Path('../../').joinpath(event_logs.relative_to(PROFILER_BASEDIR))
+    print(event_logs_rel)
+
+
+    event_logs_proto = self.prof_out.joinpath('PROF-EVENT-LOGS.proto')
+    with open(event_logs_rel, 'r') as stdin:
+      with open(event_logs_proto, 'w') as stdout:
+        subprocess.run(['protoc',
+                        '--encode=perfetto.protos.Trace',
+                        'protos/perfetto/trace/trace.proto'],
+                        stdin=stdin, stdout=stdout)

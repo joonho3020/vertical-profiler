@@ -233,7 +233,7 @@ opt_cs_entry_t kf_finish_task_switch::update_profiler(profiler_t* p) {
   pid_t prev_pid = get_prev_pid(p, proc);
   p->pstate()->set_curpid(cur_pid);
 
-/* pprintf("ContextSwitch Finished %u -> %u\n", prev_pid, cur_pid); */
+  pprintf("ContextSwitch Finished %u -> %u\n", prev_pid, cur_pid);
 
   auto pid2bin = p->pstate()->pid2bin();
 

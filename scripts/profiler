@@ -34,7 +34,7 @@ def workloadsetup(args):
   workload_config.disasm_kernel()
 
   print('Build the dtb')
-  firesim_config: FireSimTargetConfig = FireSimTargetConfig(base_dir, config['firesim'])
+  firesim_config: FireSimTargetConfig = FireSimTargetConfig(base_dir, config)
   firesim_config.build_dtb()
 
 def runfiresim(args):
@@ -48,6 +48,12 @@ def runprofiler(args):
   (config, base_dir) = get_config(args)
   profiler_config: ProfilerConfig = ProfilerConfig(base_dir, config)
   profiler_config.run_profiler()
+
+def display(args):
+  print('Display logic')
+  (config, base_dir) = get_config(args)
+  profiler_config: ProfilerConfig = ProfilerConfig(base_dir, config)
+  profiler_config.display()
 
 
 def main():
@@ -66,6 +72,8 @@ def main():
     runfiresim(args)
   elif args.command == 'runprofiler':
     runprofiler(args)
+  elif args.command == 'display':
+    display(args)
   else:
     parser.print_usage()
 

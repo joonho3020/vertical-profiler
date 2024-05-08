@@ -307,19 +307,26 @@ int profiler_t::run_from_trace() {
   this->configure_log(true, true);
   this->get_core(hartid)->get_state()->pc = ROCKETCHIP_RESET_VECTOR;
 
+  uint64_t bufid = 0;
   uint64_t cnt = 0;
   while (target_running()) {
     trace_buffer_t* buf = trace_reader->cur_buffer();
+/* printf("start processing buf: %" PRIu64 "\n", bufid); */
     while (!buf->can_consume()) {
       ;
     }
     while (!buf->empty()) {
+      rtl_step_t& step = buf->pop_front();
+      if (!(step.val || step.except || step.intrpt)) {
+        continue;
+      }
+
       if ((cnt++ & TOHOST_CHECK_PERIOD) == 0) {
         uint64_t tohost_req = check_tohost_req();
         if (tohost_req)
           handle_tohost_req(tohost_req);
       }
-      rtl_step_t& step = buf->pop_front();
+
       processor_lib_t* proc = get_core(hartid);
       bool success = ganged_step(step, hartid);
       if (!success) {
@@ -342,6 +349,7 @@ int profiler_t::run_from_trace() {
     }
     buf->done_consume();
     trace_reader->pop_buffer();
+    bufid++;
   }
 
   logger_->flush_packet_trace_to_threadpool();
