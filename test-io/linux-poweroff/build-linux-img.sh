@@ -8,9 +8,9 @@ set -ex
 make
 mkdir -p linux-workloads/overlay/root
 cp *.linux.riscv linux-workloads/overlay/root
-WORKLOAD_DIR=$ONE_PROF_BASE/test-io/linux-poweroff/
+WORKLOAD_DIR=$PROFILER_BASEDIR/test-io/linux-poweroff/
 
-MARSHAL_DIR=$ONE_PROF_BASE/chipyard/software/firemarshal
+MARSHAL_DIR=$PROFILER_BASEDIR/chipyard/software/firemarshal
 cd $MARSHAL_DIR
 ./marshal -vvv build $WORKLOAD_DIR/linux-workloads.yaml
 

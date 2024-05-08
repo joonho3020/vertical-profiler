@@ -76,6 +76,5 @@ def main():
     protogen_cmd = perfetto_proto_generation_cmd(outdir)
     utils.bash(protogen_cmd)
 
-
 if __name__=="__main__":
   main()

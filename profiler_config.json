@@ -1,18 +1,28 @@
 {
-  "outdir":          "perf-measure",
-  "spike_only_mode": false,
-  "profiler_bin":    "src/builddir/profiler_main",
-  "spike_log":       "SPIKE-LOGS",
-  "libspikedevs":    "src/spike-devices/libspikedevices.so",
-  "isa":             "rv64imafdczicsr_zifencei_zihpm_zicntr",
-  "kernel_dump":     "test-io/traces/boom-markdown/KERNEL.riscv.dump",
-  "kernel_dwarf":    "test-io/traces/boom-markdown/markdown0-markdown-bin-dwarf",
-  "iceblk_img":      "test-io/traces/boom-markdown/markdown0-markdown.img",
-  "dtb":             "test-io/traces/boom-markdown/boom.dtb",
-  "rtl_trace_dir":   "/scratch/joonho.whangbo/coding/FIRESIM_RUNS_DIR/boom-linux-multithread-sv48/sim_slot_0/COSPIKE-TRACES",
-  "reader_threads":  12,
-  "insn_per_file":   100000,
-  "max_file_bytes":  6291456,
-  "user_bins":       ["test-io/traces/boom-markdown/markdown.riscv"],
-  "bin":             "test-io/traces/boom-markdown/markdown0-markdown-bin"
+  "workload_base_dir" : "script-test",
+  "workload" : {
+    "user_bins": ["overlay/root/markdown.riscv"],
+    "marshal": {
+      "name": "markdown",
+      "base": "br-base.json",
+      "overlay": "overlay",
+      "command": "cd /root && ./run.sh",
+      "outputs": ["/root/trace.out"]
+    }
+  },
+  "firesim" : {
+    "config_hwdb": "alveo_u250_cospike_boom_config_70",
+    "sim_dir": "/scratch/joonho.whangbo/coding/FIRESIM_RUNS_DIR/script-test",
+    "cospike_threads": 16,
+    "metasim": false,
+    "metasim_sim": "vcs"
+  },
+  "profiler" : {
+    "outdir":          "perf-measure",
+    "spike_only_mode": false,
+    "profiler_bin":    "src/builddir/profiler_main",
+    "libspikedevs":    "src/spike-devices/libspikedevices.so",
+    "isa":             "rv64imafdczicsr_zifencei_zihpm_zicntr",
+    "reader_threads":  12
+  }
 }

@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import argparse
+import json
+import subprocess
+import yaml
+from typing import Dict, List
+from pathlib import Path
+from utils import open_json
+from firesim_config import WorkloadConfig, FireSimTargetConfig, FireSimRuntimeConfig, ProfilerConfig
+
+PROFILER_BASEDIR = Path(os.environ['PROFILER_BASEDIR'])
+
+
+def get_config(args):
+  config = open_json(args.config)
+
+  test_io_dir = PROFILER_BASEDIR.joinpath('test-io')
+  base_dir = test_io_dir.joinpath(config['workload_base_dir'])
+  return (config, base_dir)
+
+def workloadsetup(args):
+  print('Running workloadsetup')
+  (config, base_dir) = get_config(args)
+
+  print('Build and install marshal')
+  workload_config: WorkloadConfig = WorkloadConfig(base_dir, config['workload'])
+  workload_config.build_and_install_marshal()
+  workload_config.link_marshal_builds()
+
+  print('Disassembling the kernel')
+  workload_config.disasm_kernel()
+
+  print('Build the dtb')
+  firesim_config: FireSimTargetConfig = FireSimTargetConfig(base_dir, config['firesim'])
+  firesim_config.build_dtb()
+
+def runfiresim(args):
+  print('Running FireSim')
+  (config, base_dir) = get_config(args)
+  firesim_config: FireSimRuntimeConfig = FireSimRuntimeConfig(base_dir, config)
+  firesim_config.run_firesim()
+
+def runprofiler(args):
+  print('Running Profiler')
+  (config, base_dir) = get_config(args)
+  profiler_config: ProfilerConfig = ProfilerConfig(base_dir, config)
+  profiler_config.run_profiler()
+
+
+def main():
+  parser = argparse.ArgumentParser(description='Profiler CLI')
+  parser.add_argument('command', type=str, help='Command to run')
+  parser.add_argument('--config', '-c', type=str,  required=True,  help='json file containing the run config')
+  args = parser.parse_args()
+
+  if len(sys.argv) == 1:
+    parser.print_usage()
+    sys.exit(1)
+
+  if args.command == 'workloadsetup':
+    workloadsetup(args)
+  elif args.command == 'runfiresim':
+    runfiresim(args)
+  elif args.command == 'runprofiler':
+    runprofiler(args)
+  else:
+    parser.print_usage()
+
+if __name__=="__main__":
+  main()

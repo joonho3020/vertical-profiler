@@ -1,11 +1,11 @@
-export ONE_PROF_BASE=$(pwd)
+export PROFILER_BASEDIR=$(pwd)
 
-export PATH="$PATH:$ONE_PROF_BASE/src/fireperf"
-export PATH="$PATH:$ONE_PROF_BASE/src/fireperf/FlameGraph"
-export PATH="$PATH:$ONE_PROF_BASE/scripts"
+export PATH="$PATH:$PROFILER_BASEDIR/src/fireperf"
+export PATH="$PATH:$PROFILER_BASEDIR/src/fireperf/FlameGraph"
+export PATH="$PATH:$PROFILER_BASEDIR/scripts"
 
 source chipyard/env.sh
-export PROTOBUF_INSTALL_DIR=$ONE_PROF_BASE/src/protobuf/install
+export PROTOBUF_INSTALL_DIR=$PROFILER_BASEDIR/src/protobuf/install
 export PATH="$PROTOBUF_INSTALL_DIR/bin:$PATH"
 
 export GCC="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gcc"
