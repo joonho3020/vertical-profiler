@@ -62,6 +62,10 @@ ObjdumpedBinary::ObjdumpedBinary(std::string binaryWithDwarf) {
       }
     }
 
+    if (start >= this->progtext.size()) {
+      break;
+    }
+
     // Populate subroutine entry point
     if (this->progtext[start] != nullptr) {
       fprintf(stderr,
