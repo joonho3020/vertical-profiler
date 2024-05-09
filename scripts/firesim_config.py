@@ -3,9 +3,12 @@
 import yaml
 import json
 import subprocess
+import os
+import re
+import time
 from pathlib import Path
 from typing import Dict, List
-import os
+from playwright.sync_api import Playwright, sync_playwright, expect
 
 PROFILER_BASEDIR = Path(os.environ['PROFILER_BASEDIR'])
 
@@ -281,7 +284,7 @@ class ProfilerConfig(FireSimRuntimeConfig):
     os.chdir(self.base_dir)
     subprocess.run('./run.sh', shell=True)
 
-  def display(self):
+  def gen_perfetto_proto(self):
     event_logs = self.prof_out.joinpath('PROF-EVENT-LOGS')
     perfetto_dir = PROFILER_BASEDIR.joinpath('src', 'perfetto')
     os.chdir(perfetto_dir)
@@ -292,10 +295,33 @@ class ProfilerConfig(FireSimRuntimeConfig):
     print(event_logs_rel)
 
 
-    event_logs_proto = self.prof_out.joinpath('PROF-EVENT-LOGS.proto')
+    proto_name = 'PROF-EVENT-LOGS.proto'
+    event_logs_proto = self.prof_out.joinpath(proto_name)
     with open(event_logs_rel, 'r') as stdin:
       with open(event_logs_proto, 'w') as stdout:
         subprocess.run(['protoc',
                         '--encode=perfetto.protos.Trace',
                         'protos/perfetto/trace/trace.proto'],
                         stdin=stdin, stdout=stdout)
+
+  def run_browser(self, playwright: Playwright) -> None:
+      browser = playwright.firefox.launch(headless=False)
+      context = browser.new_context()
+      page = context.new_page()
+      page.goto("http://localhost:10000/")
+
+      while True:
+          page.reload()
+          self.gen_perfetto_proto()
+
+          os.chdir(self.prof_out)
+          with page.expect_file_chooser() as fc_info:
+              page.get_by_text("Open trace file").click()
+          file_chooser = fc_info.value
+          file_chooser.set_files("PROF-EVENT-LOGS.proto")
+          time.sleep(5)
+      page.pause()
+
+  def display(self):
+    with sync_playwright() as playwright:
+        self.run_browser(playwright)
