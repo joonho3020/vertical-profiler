@@ -80,3 +80,32 @@ cd scripts
 ```
 
 - Based on the firesim output traces, dtb, objdump etc, the profiler will run
+
+### Step 6.
+- We can auto launch and refresh the profiler visualization.
+- First start the perfetto server localy (localhost:10000)
+```bash
+$ cd perfetto
+
+# Install build dependencies
+tools/install-build-deps --ui
+
+# Will build into ./out/ui by default. Can be changed with --out path/
+# The final bundle will be available at ./ui/out/dist/.
+# The build script creates a symlink from ./ui/out to $OUT_PATH/ui/.
+ui/build
+
+# This will automatically build the UI. There is no need to manually run
+# ui/build before running ui/run-dev-server.
+ui/run-dev-server
+```
+
+- Now, install playwright
+```bash
+pip install pytest-playwright
+```
+
+- Run the below command which will generate a protobuf message from the profiler event log and feed it into the perfetto server, and refresh it periodically
+```bash
+./profiler display --config ../profiler_config.json
+```
