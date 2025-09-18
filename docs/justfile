@@ -1,0 +1,5 @@
+open:
+  open doc.pdf
+
+watch:
+  typst watch doc.typ ../doc.pdf

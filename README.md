@@ -1,5 +1,11 @@
 # Vertical profiler
 
+---
+
+[Click here for further explanation](./doc.pdf)
+
+---
+
 ## Usage
 
 ### Step 1.
